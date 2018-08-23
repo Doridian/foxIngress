@@ -10,19 +10,13 @@ server name indication in the ClientHello bytes.  Currently non-TLS SSL connecti
 and TLS connections without SNIs are dropped messily.
 
 Once a hostname has been extracted from the incoming connection, the proxy looks up
-a set of backends on a redis server, which is assumed to be running on 127.0.0.1:6379.
-The key for the set is `hostnames:<the hostname from the connection>:backends`.
-If there is no set stored in redis for the backend, it will check 
-`hostnames:httpDefault:backends` for HTTP connections, or `hostnames:httpsDefault:backends`
-for HTTPS.  If these latter two lookups fail or return empty sets, it will drop 
-the connection.
+a set of backends on a consul server, which is assumed to be running on 127.0.0.1:8500.
+The key for the set is `protocall/subdomain/ i.e. https/test.example.com for https://test.example.com
 
 A backend is then selected at random from the list that was supplied by redis, and
 the whole client connection is sent down to the appropriate port on that backend. The
 proxy will keep proxying data back and forth until one of the endpoints closes the 
 connection.
-
-Uses Juhani Åhman's radix client to access redis: https://github.com/fzzy/radix
 
 
 MIT licensed, in case you're crazy enough to want to use it for something :-)

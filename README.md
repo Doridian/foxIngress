@@ -13,10 +13,4 @@ Once a hostname has been extracted from the incoming connection, the proxy looks
 a set of backends on a consul server, which is assumed to be running on 127.0.0.1:8500.
 The key for the set is `protocall/domain/ i.e. https/test.example.com for https://test.example.com`
 
-A backend is then selected at random from the list that was supplied by redis, and
-the whole client connection is sent down to the appropriate port on that backend. The
-proxy will keep proxying data back and forth until one of the endpoints closes the 
-connection.
-
-
 MIT licensed, in case you're crazy enough to want to use it for something :-)

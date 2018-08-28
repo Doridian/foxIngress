@@ -1,39 +1,20 @@
 /*
 A simple routing proxy in Go.  Accepts incoming connections on ports 80 and 443.
-
-Connections on port 80 are assumed to be HTTP.  A hostname is extracted from each using
-the HTTP "Host" header.
-Connections on port 443 are assumed to be TLS.  A hostname is extracted from the
-server name indication in the ClientHello bytes.  Currently non-TLS SSL connections
-and TLS connections without SNIs are dropped messily.
-
-Once a hostname has been extracted from the incoming connection, the proxy looks up
-a set of backends on a redis server, which is assumed to be running on 127.0.0.1:6379.
-The key for the set is hostnames:<the hostname from the connection>:backends.
-If there is no set stored in redis for the backend, it will check
-hostnames:httpDefault:backends for HTTP connections, or hostnames:httpsDefault:backends
-for HTTPS.  If these latter two lookups fail or return empty sets, it will drop
-the connection.
-
-A backend is then selected at random from the list that was supplied by redis, and
-the whole client connection is sent down to the appropriate port on that backend.
-The proxy will keep proxying data back and forth until one of the endpoints closes
-the connection.
 */
 
 package main
 
 import (
-	"bufio"
-	"container/list"
 	"errors"
 	"fmt"
 	"github.com/hashicorp/consul/api"
+	"github.com/inconshreveable/go-vhost"
 	"io"
-	"log"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 func getBackend(hostname string, defaultBackendType string, consulClient *api.KV) (string, error) {
@@ -50,191 +31,82 @@ func getBackend(hostname string, defaultBackendType string, consulClient *api.KV
 	return string(pair.Value), nil
 }
 
-func copyAndClose(dst io.WriteCloser, src io.Reader) {
-	io.Copy(dst, src)
-	dst.Close()
-}
-
-func handleHTTPConnection(downstream net.Conn, consulClient *api.KV) {
-	reader := bufio.NewReader(downstream)
-	hostname := ""
-	readLines := list.New()
-	for hostname == "" {
-		bytes, _, err := reader.ReadLine()
-		if err != nil {
-			fmt.Println("Error reading", err)
-			downstream.Close()
-			return
-		}
-		line := string(bytes)
-		readLines.PushBack(line)
-		if line == "" {
-			// End of HTTP headers
-			break
-		}
-		if strings.HasPrefix(line, "Host: ") {
-			hostname = strings.TrimPrefix(line, "Host: ")
-			break
-		}
+func handleHTTPConnection(client net.Conn, consulClient *api.KV) {
+	vhostConn, err := vhost.HTTP(client)
+	if err != nil {
+		return
 	}
-	backendAddress, err := getBackend(hostname, "http/", consulClient)
+	// read out the Host header and auth from the request
+	hostname := strings.ToLower(vhostConn.Host())
+	client = vhostConn
+	vhostConn.Free()
+	backend, err := getBackend(hostname, "http/", consulClient)
 	if err != nil {
 		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
-		downstream.Close()
+		client.Close()
 		return
 	}
-
-	upstream, err := net.Dial("tcp", backendAddress)
+	upConn, err := net.DialTimeout("tcp", backend, time.Duration(10000)*time.Millisecond)
 	if err != nil {
-		fmt.Println("Couldn't connect to backend", err)
-		downstream.Close()
+		fmt.Printf("Failed to dial backend connection %v: %v\n", backend, err)
+		client.Close()
 		return
 	}
+	fmt.Printf("Initiated new connection to backend: %v %v\n", upConn.LocalAddr(), upConn.RemoteAddr())
 
-	for element := readLines.Front(); element != nil; element = element.Next() {
-		line := element.Value.(string)
-		upstream.Write([]byte(line))
-		upstream.Write([]byte("\n"))
-	}
-
-	go copyAndClose(upstream, reader)
-	go copyAndClose(downstream, upstream)
+	// join the connections
+	joinConnections(client, upConn)
+	return
 }
 
-func handleHTTPSConnection(downstream net.Conn, consulClient *api.KV) {
-	firstByte := make([]byte, 1)
-	_, err := downstream.Read(firstByte)
-	if err != nil {
-		fmt.Println("Couldn't read first byte :-(")
-		return
-	}
-	if firstByte[0] != 0x16 {
-		fmt.Println("Not TLS :-(")
-	}
+func handleHTTPSConnection(client net.Conn, consulClient *api.KV) {
+	vhostConn, err := vhost.TLS(client)
+	hostname := vhostConn.Host()
+	client = vhostConn
+	vhostConn.Free()
 
-	versionBytes := make([]byte, 2)
-	_, err = downstream.Read(versionBytes)
-	if err != nil {
-		fmt.Println("Couldn't read version bytes :-(")
-		return
-	}
-	if versionBytes[0] < 3 || (versionBytes[0] == 3 && versionBytes[1] < 1) {
-		fmt.Println("SSL < 3.1 so it's still not TLS")
-		return
-	}
-
-	restLengthBytes := make([]byte, 2)
-	_, err = downstream.Read(restLengthBytes)
-	if err != nil {
-		fmt.Println("Couldn't read restLength bytes :-(")
-		return
-	}
-	restLength := (int(restLengthBytes[0]) << 8) + int(restLengthBytes[1])
-
-	rest := make([]byte, restLength)
-	_, err = downstream.Read(rest)
-	if err != nil {
-		fmt.Println("Couldn't read rest of bytes")
-		return
-	}
-
-	current := 0
-
-	handshakeType := rest[0]
-	current += 1
-	if handshakeType != 0x1 {
-		fmt.Println("Not a ClientHello")
-		return
-	}
-
-	// Skip over another length
-	current += 3
-	// Skip over protocolversion
-	current += 2
-	// Skip over random number
-	current += 4 + 28
-	// Skip over session ID
-	sessionIDLength := int(rest[current])
-	current += 1
-	current += sessionIDLength
-
-	cipherSuiteLength := (int(rest[current]) << 8) + int(rest[current+1])
-	current += 2
-	current += cipherSuiteLength
-
-	compressionMethodLength := int(rest[current])
-	current += 1
-	current += compressionMethodLength
-
-	if current > restLength {
-		fmt.Println("no extensions")
-		return
-	}
-
-	// Skip over extensionsLength
-	// extensionsLength := (int(rest[current]) << 8) + int(rest[current + 1])
-	current += 2
-
-	hostname := ""
-	for current < restLength && hostname == "" {
-		extensionType := (int(rest[current]) << 8) + int(rest[current+1])
-		current += 2
-
-		extensionDataLength := (int(rest[current]) << 8) + int(rest[current+1])
-		current += 2
-
-		if extensionType == 0 {
-
-			// Skip over number of names as we're assuming there's just one
-			current += 2
-
-			nameType := rest[current]
-			current += 1
-			if nameType != 0 {
-				fmt.Println("Not a hostname")
-				return
-			}
-			nameLen := (int(rest[current]) << 8) + int(rest[current+1])
-			current += 2
-			hostname = string(rest[current : current+nameLen])
-		}
-
-		current += extensionDataLength
-	}
-	if hostname == "" {
-		fmt.Println("No hostname")
-		return
-	}
-
-	backendAddress, err := getBackend(hostname, "https/", consulClient)
+	backend, err := getBackend(hostname, "https/", consulClient)
 	if err != nil {
 		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
-		downstream.Close()
+		client.Close()
 		return
 	}
 
-	upstream, err := net.Dial("tcp", backendAddress)
+	upConn, err := net.DialTimeout("tcp", backend, time.Duration(10000)*time.Millisecond)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Failed to dial backend connection %v: %v\n", backend, err)
+		client.Close()
 		return
 	}
+	fmt.Printf("Initiated new connection to backend: %v %v\n", upConn.LocalAddr(), upConn.RemoteAddr())
 
-	upstream.Write(firstByte)
-	upstream.Write(versionBytes)
-	upstream.Write(restLengthBytes)
-	upstream.Write(rest)
+	// join the connections
+	joinConnections(client, upConn)
+	return
+}
 
-	go copyAndClose(upstream, downstream)
-	go copyAndClose(downstream, upstream)
+func joinConnections(c1 net.Conn, c2 net.Conn) {
+	var wg sync.WaitGroup
+	halfJoin := func(dst net.Conn, src net.Conn) {
+		defer wg.Done()
+		defer dst.Close()
+		defer src.Close()
+		n, err := io.Copy(dst, src)
+		fmt.Printf("Copy from %v to %v failed after %d bytes with error %v\n", src.RemoteAddr(), dst.RemoteAddr(), n, err)
+	}
+
+	fmt.Printf("Joining connections: %v %v\n", c1.RemoteAddr(), c2.RemoteAddr())
+	wg.Add(2)
+	go halfJoin(c1, c2)
+	go halfJoin(c2, c1)
+	wg.Wait()
 }
 
 func reportDone(done chan int) {
 	done <- 1
 }
-
 func doProxy(done chan int, port int, handle func(net.Conn, *api.KV), consulClient *api.KV) {
 	defer reportDone(done)
-
 	listener, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(port))
 	if err != nil {
 		fmt.Println("Couldn't start listening", err)

@@ -6,6 +6,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/hashicorp/consul/api"
 	"github.com/inconshreveable/go-vhost"
@@ -53,8 +54,6 @@ func handleHTTPConnection(client net.Conn, consulClient *api.KV) {
 		return
 	}
 	fmt.Printf("Initiated new connection to backend: %v %v\n", upConn.LocalAddr(), upConn.RemoteAddr())
-
-	// join the connections
 	joinConnections(client, upConn)
 	return
 }
@@ -80,7 +79,6 @@ func handleHTTPSConnection(client net.Conn, consulClient *api.KV) {
 	}
 	fmt.Printf("Initiated new connection to backend: %v %v\n", upConn.LocalAddr(), upConn.RemoteAddr())
 
-	// join the connections
 	joinConnections(client, upConn)
 	return
 }
@@ -125,6 +123,12 @@ func doProxy(done chan int, port int, handle func(net.Conn, *api.KV), consulClie
 }
 
 func main() {
+	var url string
+	flag.StringVar(&url, "url", "127.0.0.1:8500", "Url pointing to consul cluster")
+	flag.Parse()
+	config := api.DefaultConfig()
+	config.Address = url
+	fmt.Println(config)
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		panic(err)

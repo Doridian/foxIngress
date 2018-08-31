@@ -1,0 +1,4 @@
+flask==0.10.1
+python-consul==0.3.12
+requests==2.6.0
+pyopenssl==18.0.0

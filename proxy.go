@@ -24,6 +24,7 @@ func getBackend(hostname string, defaultBackendType string, consulClient *api.KV
 	pair, _, err := consulClient.Get(defaultBackendType+hostname, nil)
 	if err != nil {
 		fmt.Println(err.Error())
+		return "", err
 	}
 	if pair == nil {
 		return "", errors.New("No hostname found")
@@ -128,8 +129,7 @@ func main() {
 	flag.Parse()
 	config := api.DefaultConfig()
 	config.Address = url
-	fmt.Println(config)
-	client, err := api.NewClient(api.DefaultConfig())
+	client, err := api.NewClient(config)
 	if err != nil {
 		panic(err)
 	}

@@ -1,10 +1,10 @@
 version: "3"
 services:
-  stupid-proxy:
+  simple-proxy:
     image: golang:1.11-stretch
     volumes:
-      - .:/go/src/stupid-proxy
-    command: "/go/src/stupid-proxy/stupid-proxy/proxy -url http://consul1:8500"
+      - .:/go/src/simple-proxy
+    command: "/go/src/simple-proxy/simpleproxy -url http://consul1:8500"
     ports:
       - "3999:3999"
       - "4000:4000"
@@ -13,16 +13,16 @@ services:
   consulsetup:
     image: golang:1.11-stretch
     volumes:
-      - .:/go/src/consulsetup
-    command: "/go/src/consulsetup/consulsetup/setup -url http://consul1:8500"
+      - .:/go/src/simple-proxy
+    command: "/go/src/simple-proxy/testing/consulsetup/setup -url http://consul1:8500"
     depends_on:
       - consul1
       - consul3
-      - stupid-proxy
+      - simple-proxy
   httpsapp:
-    build: ./python_app_https/
+    build: ./testing/python_app_https/
   httpapp:
-    build: ./python_app_http/
+    build: ./testing/python_app_http/
   consul1:
     image: "progrium/consul:latest"
     hostname: "consul1"

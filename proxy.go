@@ -16,7 +16,25 @@ import (
 	"github.com/inconshreveable/go-vhost"
 )
 
-func handleConnection(vhostConn vhost.Conn, protocol BackendProtocol) {
+func handleConnection(client net.Conn, protocol BackendProtocol) {
+	defer client.Close()
+
+	var vhostConn vhost.Conn
+	var err error
+	switch protocol {
+	case PROTO_HTTP:
+		vhostConn, err = vhost.HTTP(client)
+	case PROTO_HTTPS:
+		vhostConn, err = vhost.TLS(client)
+	default:
+		fmt.Println("Invalid protocol!")
+		return
+	}
+	if err != nil {
+		fmt.Println("Error decoding protocol:", err)
+		return
+	}
+
 	hostname := strings.ToLower(vhostConn.Host())
 	vhostConn.Free()
 	backend, err := GetBackend(hostname, protocol)
@@ -34,21 +52,11 @@ func handleConnection(vhostConn vhost.Conn, protocol BackendProtocol) {
 }
 
 func handleHTTPConnection(client net.Conn) {
-	defer client.Close()
-	vhostConn, err := vhost.HTTP(client)
-	if err != nil {
-		return
-	}
-	handleConnection(vhostConn, PROTO_HTTP)
+	handleConnection(client, PROTO_HTTP)
 }
 
 func handleHTTPSConnection(client net.Conn) {
-	defer client.Close()
-	vhostConn, err := vhost.TLS(client)
-	if err != nil {
-		return
-	}
-	handleConnection(vhostConn, PROTO_HTTPS)
+	handleConnection(client, PROTO_HTTPS)
 }
 
 func halfJoin(wg sync.WaitGroup, dst net.Conn, src net.Conn) {

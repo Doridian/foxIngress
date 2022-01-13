@@ -5,6 +5,7 @@ A simple routing server in Go.  Accepts incoming connections on ports 80 and 443
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -74,6 +75,9 @@ func halfJoin(wg sync.WaitGroup, dst net.Conn, src net.Conn) {
 	defer dst.Close()
 	defer src.Close()
 	n, err := io.Copy(dst, src)
+	if err == nil || errors.Is(err, net.ErrClosed) {
+		return
+	}
 	fmt.Printf("Copy from %v to %v failed after %d bytes with error %v\n", src.RemoteAddr(), dst.RemoteAddr(), n, err)
 }
 func joinConnections(c1 net.Conn, c2 net.Conn) {
@@ -88,6 +92,7 @@ func joinConnections(c1 net.Conn, c2 net.Conn) {
 func doProxy(done chan int, host string, handle func(net.Conn)) {
 	defer func() {
 		done <- 1
+		panic(errors.New("listeners should never end: panic"))
 	}()
 	listener, err := net.Listen("tcp", host)
 	if err != nil {

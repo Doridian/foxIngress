@@ -1,4 +1,4 @@
-module github.com/Doridian/lan-tunnel-proxy
+module github.com/Doridian/sni-vhost-proxy
 
 go 1.17
 

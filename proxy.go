@@ -8,40 +8,14 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/fzzy/radix/redis"
 	"github.com/inconshreveable/go-vhost"
 )
 
-var defaultBackends map[string]string
-
-func getBackend(hostname string, protocol string, redisClient *redis.Client) (string, error) {
-	var backend string
-	var err error
-
-	res := redisClient.Cmd("get", "hostnames:"+hostname+":backend")
-	if res.Type == redis.NilReply {
-		backend = ""
-	} else if res.Type == redis.ErrorReply {
-		return "", res.Err
-	} else {
-		backend, err = res.Str()
-	}
-	if err != nil {
-		fmt.Println("Error in redis lookup for hostname backend", err)
-		return "", err
-	}
-	if len(backend) < 1 {
-		return defaultBackends[protocol], nil
-	}
-	return backend, nil
-}
-
-func handleHTTPConnection(client net.Conn, redisClient *redis.Client) {
+func handleHTTPConnection(client net.Conn) {
 	defer client.Close()
 
 	vhostConn, err := vhost.HTTP(client)
@@ -52,8 +26,8 @@ func handleHTTPConnection(client net.Conn, redisClient *redis.Client) {
 	hostname := strings.ToLower(vhostConn.Host())
 	client = vhostConn
 	vhostConn.Free()
-	backend, err := getBackend(hostname, "http", redisClient)
-	if err != nil {
+	backend, err := GetBackend(hostname, "http")
+	if err != nil || backend == "" {
 		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
 		return
 	}
@@ -67,7 +41,7 @@ func handleHTTPConnection(client net.Conn, redisClient *redis.Client) {
 	joinConnections(client, upConn)
 }
 
-func handleHTTPSConnection(client net.Conn, redisClient *redis.Client) {
+func handleHTTPSConnection(client net.Conn) {
 	defer client.Close()
 
 	vhostConn, err := vhost.TLS(client)
@@ -79,7 +53,7 @@ func handleHTTPSConnection(client net.Conn, redisClient *redis.Client) {
 	client = vhostConn
 	vhostConn.Free()
 
-	backend, err := getBackend(hostname, "https", redisClient)
+	backend, err := GetBackend(hostname, "https")
 	if err != nil {
 		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
 		return
@@ -95,28 +69,26 @@ func handleHTTPSConnection(client net.Conn, redisClient *redis.Client) {
 	joinConnections(client, upConn)
 }
 
+func halfJoin(wg sync.WaitGroup, dst net.Conn, src net.Conn) {
+	defer wg.Done()
+	defer dst.Close()
+	defer src.Close()
+	n, err := io.Copy(dst, src)
+	fmt.Printf("Copy from %v to %v failed after %d bytes with error %v\n", src.RemoteAddr(), dst.RemoteAddr(), n, err)
+}
 func joinConnections(c1 net.Conn, c2 net.Conn) {
 	var wg sync.WaitGroup
-	halfJoin := func(dst net.Conn, src net.Conn) {
-		defer wg.Done()
-		defer dst.Close()
-		defer src.Close()
-		n, err := io.Copy(dst, src)
-		fmt.Printf("Copy from %v to %v failed after %d bytes with error %v\n", src.RemoteAddr(), dst.RemoteAddr(), n, err)
-	}
-
 	fmt.Printf("Joining connections: %v %v\n", c1.RemoteAddr(), c2.RemoteAddr())
 	wg.Add(2)
-	go halfJoin(c1, c2)
-	go halfJoin(c2, c1)
+	go halfJoin(wg, c1, c2)
+	go halfJoin(wg, c2, c1)
 	wg.Wait()
 }
 
-func reportDone(done chan int) {
-	done <- 1
-}
-func doProxy(done chan int, host string, handle func(net.Conn, *redis.Client), redisClient *redis.Client) {
-	defer reportDone(done)
+func doProxy(done chan int, host string, handle func(net.Conn)) {
+	defer func() {
+		done <- 1
+	}()
 	listener, err := net.Listen("tcp", host)
 	if err != nil {
 		fmt.Println("Couldn't start listening", err)
@@ -130,26 +102,18 @@ func doProxy(done chan int, host string, handle func(net.Conn, *redis.Client), r
 			return
 		}
 
-		go handle(connection, redisClient)
+		go handle(connection)
 	}
 }
 
 func main() {
-	defaultBackends = make(map[string]string)
-	defaultBackends["http"] = os.Getenv("DEFAULT_BACKEND_HTTP")
-	defaultBackends["https"] = os.Getenv("DEFAULT_BACKEND_HTTPS")
-
-	redisClient, error := redis.Dial("tcp", os.Getenv("REDIS_HOST"))
-	if error != nil {
-		fmt.Println("Error connecting to redis", error)
-		os.Exit(1)
-	}
+	LoadConfig()
 
 	httpDone := make(chan int)
-	go doProxy(httpDone, ":80", handleHTTPConnection, redisClient)
+	go doProxy(httpDone, ":80", handleHTTPConnection)
 
 	httpsDone := make(chan int)
-	go doProxy(httpsDone, ":443", handleHTTPSConnection, redisClient)
+	go doProxy(httpsDone, ":443", handleHTTPSConnection)
 
 	<-httpDone
 	<-httpsDone

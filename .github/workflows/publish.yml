@@ -26,4 +26,4 @@ jobs:
           build-args: |
             GIT_REVISION=${{ github.sha }}
           tags: |
-            ghcr.io/doridian/lan-tunnel-proxy/lan-tunnel-proxy:latest
+            ghcr.io/doridian/sni-vhost-proxy/sni-vhost-proxy:latest

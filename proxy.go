@@ -16,18 +16,10 @@ import (
 	"github.com/inconshreveable/go-vhost"
 )
 
-func handleHTTPConnection(client net.Conn) {
-	defer client.Close()
-
-	vhostConn, err := vhost.HTTP(client)
-	if err != nil {
-		return
-	}
-	// read out the Host header and auth from the request
+func handleConnection(vhostConn vhost.Conn, protocol BackendProtocol) {
 	hostname := strings.ToLower(vhostConn.Host())
-	client = vhostConn
 	vhostConn.Free()
-	backend, err := GetBackend(hostname, PROTO_HTTP)
+	backend, err := GetBackend(hostname, protocol)
 	if err != nil || backend == "" {
 		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
 		return
@@ -37,37 +29,26 @@ func handleHTTPConnection(client net.Conn) {
 		fmt.Printf("Failed to dial backend connection %v: %v\n", backend, err)
 		return
 	}
-	fmt.Printf("Initiated new connection to backend: %v %v\n", upConn.LocalAddr(), upConn.RemoteAddr())
 
-	joinConnections(client, upConn)
+	joinConnections(vhostConn, upConn)
+}
+
+func handleHTTPConnection(client net.Conn) {
+	defer client.Close()
+	vhostConn, err := vhost.HTTP(client)
+	if err != nil {
+		return
+	}
+	handleConnection(vhostConn, PROTO_HTTP)
 }
 
 func handleHTTPSConnection(client net.Conn) {
 	defer client.Close()
-
 	vhostConn, err := vhost.TLS(client)
 	if err != nil {
-		fmt.Println("Could not extract SNI handshake")
 		return
 	}
-	hostname := vhostConn.Host()
-	client = vhostConn
-	vhostConn.Free()
-
-	backend, err := GetBackend(hostname, PROTO_HTTPS)
-	if err != nil {
-		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
-		return
-	}
-
-	upConn, err := net.DialTimeout("tcp", backend, time.Duration(10000)*time.Millisecond)
-	if err != nil {
-		fmt.Printf("Failed to dial backend connection %v: %v\n", backend, err)
-		return
-	}
-	fmt.Printf("Initiated new connection to backend: %v %v\n", upConn.LocalAddr(), upConn.RemoteAddr())
-
-	joinConnections(client, upConn)
+	handleConnection(vhostConn, PROTO_HTTPS)
 }
 
 func halfJoin(wg sync.WaitGroup, dst net.Conn, src net.Conn) {
@@ -82,7 +63,7 @@ func halfJoin(wg sync.WaitGroup, dst net.Conn, src net.Conn) {
 }
 func joinConnections(c1 net.Conn, c2 net.Conn) {
 	var wg sync.WaitGroup
-	fmt.Printf("Joining connections: %v %v\n", c1.RemoteAddr(), c2.RemoteAddr())
+	//fmt.Printf("Joining connections: %v %v\n", c1.RemoteAddr(), c2.RemoteAddr())
 	wg.Add(2)
 	go halfJoin(wg, c1, c2)
 	go halfJoin(wg, c2, c1)

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -64,14 +65,13 @@ func tryMapHost(host string, config *configBase) string {
 	if res == "" {
 		return host
 	}
-	fmt.Println("Remapping ", host, " to ", res)
 	return res
 }
 
 func LoadConfig() {
 	file, err := os.Open(os.Getenv("CONFIG_FILE"))
 	if err != nil {
-		panic(err)
+		log.Panicf("Could not open config file: %v", err)
 	}
 	decoder := yaml.NewDecoder(file)
 	var config configBase

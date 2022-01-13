@@ -6,8 +6,8 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -27,11 +27,11 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 	case PROTO_HTTPS:
 		vhostConn, err = vhost.TLS(client)
 	default:
-		fmt.Println("Invalid protocol!")
+		log.Printf("Invalid protocol from %v", client.RemoteAddr())
 		return
 	}
 	if err != nil {
-		fmt.Println("Error decoding protocol:", err)
+		log.Printf("Error decoding protocol from %v: %v", client.RemoteAddr(), err)
 		return
 	}
 
@@ -39,12 +39,12 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 	vhostConn.Free()
 	backend, err := GetBackend(hostname, protocol)
 	if err != nil || backend == "" {
-		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
+		log.Printf("Couldn't get backend for %s: %v", hostname, err)
 		return
 	}
 	upConn, err := net.DialTimeout("tcp", backend, time.Duration(10000)*time.Millisecond)
 	if err != nil {
-		fmt.Printf("Failed to dial backend connection %v: %v\n", backend, err)
+		log.Printf("Couldn't dial backend connection for %s: %v", hostname, err)
 		return
 	}
 
@@ -63,15 +63,14 @@ func halfJoin(wg sync.WaitGroup, dst net.Conn, src net.Conn) {
 	defer wg.Done()
 	defer dst.Close()
 	defer src.Close()
-	n, err := io.Copy(dst, src)
+	_, err := io.Copy(dst, src)
 	if err == nil || errors.Is(err, net.ErrClosed) {
 		return
 	}
-	fmt.Printf("Copy from %v to %v failed after %d bytes with error %v\n", src.RemoteAddr(), dst.RemoteAddr(), n, err)
+	log.Printf("Proxy copy from %v to %v failed with error %v", src.RemoteAddr(), dst.RemoteAddr(), err)
 }
 func joinConnections(c1 net.Conn, c2 net.Conn) {
 	var wg sync.WaitGroup
-	//fmt.Printf("Joining connections: %v %v\n", c1.RemoteAddr(), c2.RemoteAddr())
 	wg.Add(2)
 	go halfJoin(wg, c1, c2)
 	go halfJoin(wg, c2, c1)
@@ -81,18 +80,18 @@ func joinConnections(c1 net.Conn, c2 net.Conn) {
 func doProxy(done chan int, host string, handle func(net.Conn)) {
 	defer func() {
 		done <- 1
-		panic(errors.New("listeners should never end: panic"))
+		log.Panicf("listener goroutine ended unexpectedly")
 	}()
 	listener, err := net.Listen("tcp", host)
 	if err != nil {
-		fmt.Println("Couldn't start listening", err)
+		log.Panicf("could not listen: %v", err)
 		return
 	}
-	fmt.Println("Started server on", host, "-- listening...")
+	log.Printf("Server started on %s", host)
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Accept error", err)
+			log.Printf("Accept error: %v", err)
 			return
 		}
 

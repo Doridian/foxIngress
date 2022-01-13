@@ -38,7 +38,8 @@ type configBase struct {
 		} `yaml:"routes"`
 		Ports configPorts `yaml:"ports"`
 	} `yaml:"defaults"`
-	Hosts map[string]configHost `yaml:"hosts"`
+	Aliases map[string]string     `yaml:"aliases"`
+	Hosts   map[string]configHost `yaml:"hosts"`
 }
 
 func GetBackend(hostname string, protocol BackendProtocol) (string, error) {
@@ -56,6 +57,14 @@ func GetBackend(hostname string, protocol BackendProtocol) (string, error) {
 		return backends[HOST_DEFAULT], nil
 	}
 	return backend, nil
+}
+
+func tryMapHost(host string, config *configBase) string {
+	res := config.Aliases[host]
+	if res == "" {
+		return host
+	}
+	return res
 }
 
 func LoadConfig() {
@@ -78,7 +87,7 @@ func LoadConfig() {
 			portHttp = config.Defaults.Ports.Http
 		}
 		if portHttp > 0 {
-			backendsHttp[host] = fmt.Sprintf("%s:%d", hostConfig.Target, portHttp)
+			backendsHttp[host] = fmt.Sprintf("%s:%d", tryMapHost(hostConfig.Target, &config), portHttp)
 		}
 
 		portHttps := hostConfig.Ports.Https
@@ -86,7 +95,7 @@ func LoadConfig() {
 			portHttps = config.Defaults.Ports.Https
 		}
 		if portHttps > 0 {
-			backendsHttps[host] = fmt.Sprintf("%s:%d", hostConfig.Target, portHttps)
+			backendsHttps[host] = fmt.Sprintf("%s:%d", tryMapHost(hostConfig.Target, &config), portHttps)
 		}
 	}
 }

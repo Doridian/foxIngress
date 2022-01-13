@@ -1,4 +1,4 @@
-simple-proxy
+lan-tunnel-proxy
 ============
 
 A simple routing proxy in Go.  Accepts incoming connections on ports 80 and 443.
@@ -10,7 +10,6 @@ server name indication in the ClientHello bytes.  Currently non-TLS SSL connecti
 and TLS connections without SNIs are dropped messily.
 
 Once a hostname has been extracted from the incoming connection, the proxy looks up
-a set of backends on a consul server, which is assumed to be running on 127.0.0.1:8500.
-The key for the set is `protocall/domain/ i.e. https/test.example.com for https://test.example.com`
+a backend from a local redis server at the REDIS_HOST environment variable
 
 MIT licensed

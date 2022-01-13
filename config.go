@@ -64,6 +64,7 @@ func tryMapHost(host string, config *configBase) string {
 	if res == "" {
 		return host
 	}
+	fmt.Println("Remapping ", host, " to ", res)
 	return res
 }
 

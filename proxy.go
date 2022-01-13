@@ -1,7 +1,3 @@
-/*
-A simple routing server in Go.  Accepts incoming connections on ports 80 and 443.
-*/
-
 package main
 
 import (

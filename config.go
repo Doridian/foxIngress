@@ -74,15 +74,19 @@ func LoadConfig() {
 
 	for host, hostConfig := range config.Hosts {
 		portHttp := hostConfig.Ports.Http
-		if portHttp <= 0 {
+		if portHttp == 0 {
 			portHttp = config.Defaults.Ports.Http
 		}
-		backendsHttp[host] = fmt.Sprintf("%s:%d", hostConfig.Target, portHttp)
+		if portHttp > 0 {
+			backendsHttp[host] = fmt.Sprintf("%s:%d", hostConfig.Target, portHttp)
+		}
 
 		portHttps := hostConfig.Ports.Https
-		if portHttps <= 0 {
+		if portHttps == 0 {
 			portHttps = config.Defaults.Ports.Https
 		}
-		backendsHttps[host] = fmt.Sprintf("%s:%d", hostConfig.Target, portHttps)
+		if portHttps > 0 {
+			backendsHttps[host] = fmt.Sprintf("%s:%d", hostConfig.Target, portHttps)
+		}
 	}
 }

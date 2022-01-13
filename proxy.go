@@ -26,7 +26,7 @@ func handleHTTPConnection(client net.Conn) {
 	hostname := strings.ToLower(vhostConn.Host())
 	client = vhostConn
 	vhostConn.Free()
-	backend, err := GetBackend(hostname, "http")
+	backend, err := GetBackend(hostname, PROTO_HTTP)
 	if err != nil || backend == "" {
 		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
 		return
@@ -53,7 +53,7 @@ func handleHTTPSConnection(client net.Conn) {
 	client = vhostConn
 	vhostConn.Free()
 
-	backend, err := GetBackend(hostname, "https")
+	backend, err := GetBackend(hostname, PROTO_HTTPS)
 	if err != nil {
 		fmt.Println("Couldn't get backend for ", hostname, "-- got error", err)
 		return

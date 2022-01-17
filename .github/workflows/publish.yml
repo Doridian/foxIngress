@@ -26,4 +26,4 @@ jobs:
           build-args: |
             GIT_REVISION=${{ github.sha }}
           tags: |
-            ghcr.io/doridian/sni-vhost-proxy/sni-vhost-proxy:latest
+            ghcr.io/foxdenhome/sni-vhost-proxy/sni-vhost-proxy:latest

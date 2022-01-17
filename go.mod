@@ -1,4 +1,4 @@
-module github.com/Doridian/sni-vhost-proxy
+module github.com/FoxDenHome/sni-vhost-proxy
 
 go 1.17
 

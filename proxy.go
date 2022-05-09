@@ -55,7 +55,7 @@ func handleHTTPSConnection(client net.Conn) {
 	handleConnection(client, PROTO_HTTPS)
 }
 
-func halfJoin(wg sync.WaitGroup, dst net.Conn, src net.Conn) {
+func halfJoin(wg *sync.WaitGroup, dst net.Conn, src net.Conn) {
 	defer wg.Done()
 	defer dst.Close()
 	defer src.Close()
@@ -68,8 +68,8 @@ func halfJoin(wg sync.WaitGroup, dst net.Conn, src net.Conn) {
 func joinConnections(c1 net.Conn, c2 net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go halfJoin(wg, c1, c2)
-	go halfJoin(wg, c2, c1)
+	go halfJoin(&wg, c1, c2)
+	go halfJoin(&wg, c2, c1)
 	wg.Wait()
 }
 

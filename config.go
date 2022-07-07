@@ -2,15 +2,14 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
-var backendsHttp map[string]string
-var backendsHttps map[string]string
+var backendsHttp map[string]*BackendInfo
+var backendsHttps map[string]*BackendInfo
 
 type BackendProtocol int
 
@@ -27,45 +26,56 @@ type configPorts struct {
 }
 
 type configHost struct {
-	Target string      `yaml:"target"`
-	Ports  configPorts `yaml:"ports"`
+	Target        string      `yaml:"target"`
+	ProxyProtocol bool        `yaml:"proxy_protocol"`
+	Ports         configPorts `yaml:"ports"`
 }
 
 type configBase struct {
 	Defaults struct {
-		Routes struct {
-			Http  string `yaml:"http"`
-			Https string `yaml:"https"`
-		} `yaml:"routes"`
 		Ports configPorts `yaml:"ports"`
 	} `yaml:"defaults"`
-	Aliases map[string]string     `yaml:"aliases"`
+	Aliases map[string]configHost `yaml:"aliases"`
 	Hosts   map[string]configHost `yaml:"hosts"`
 }
 
-func GetBackend(hostname string, protocol BackendProtocol) (string, error) {
-	var backends map[string]string
+type BackendInfo struct {
+	Host          string
+	ProxyProtocol bool
+	Port          int
+}
+
+func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error) {
+	var backends map[string]*BackendInfo
 	switch protocol {
 	case PROTO_HTTP:
 		backends = backendsHttp
 	case PROTO_HTTPS:
 		backends = backendsHttps
 	default:
-		return "", errors.New("invalid protocol")
+		return nil, errors.New("invalid protocol")
 	}
-	backend := backends[hostname]
-	if backend == "" {
+	backend, ok := backends[hostname]
+	if !ok {
 		return backends[HOST_DEFAULT], nil
 	}
 	return backend, nil
 }
 
-func tryMapHost(host string, config *configBase) string {
-	res := config.Aliases[host]
-	if res == "" {
+func tryMapHost(host *configHost, config *configBase) *configHost {
+	res, ok := config.Aliases[host.Target]
+	if !ok {
 		return host
 	}
-	return res
+	return &res
+}
+
+func backendConfigFromConfigHost(host *configHost, port int) *BackendInfo {
+	return &BackendInfo{
+		Host:          host.Target,
+		Port:          port,
+		ProxyProtocol: host.ProxyProtocol,
+	}
 }
 
 func LoadConfig() {
@@ -77,18 +87,18 @@ func LoadConfig() {
 	var config configBase
 	decoder.Decode(&config)
 
-	backendsHttp = make(map[string]string)
-	backendsHttps = make(map[string]string)
-	backendsHttp[HOST_DEFAULT] = config.Defaults.Routes.Http
-	backendsHttps[HOST_DEFAULT] = config.Defaults.Routes.Https
+	backendsHttp = make(map[string]*BackendInfo)
+	backendsHttps = make(map[string]*BackendInfo)
 
-	for host, hostConfig := range config.Hosts {
+	for host, rawHostConfig := range config.Hosts {
+		hostConfig := tryMapHost(&rawHostConfig, &config)
+
 		portHttp := hostConfig.Ports.Http
 		if portHttp == 0 {
 			portHttp = config.Defaults.Ports.Http
 		}
 		if portHttp > 0 {
-			backendsHttp[host] = fmt.Sprintf("%s:%d", tryMapHost(hostConfig.Target, &config), portHttp)
+			backendsHttp[host] = backendConfigFromConfigHost(hostConfig, portHttp)
 		}
 
 		portHttps := hostConfig.Ports.Https
@@ -96,7 +106,7 @@ func LoadConfig() {
 			portHttps = config.Defaults.Ports.Https
 		}
 		if portHttps > 0 {
-			backendsHttps[host] = fmt.Sprintf("%s:%d", tryMapHost(hostConfig.Target, &config), portHttps)
+			backendsHttps[host] = backendConfigFromConfigHost(hostConfig, portHttps)
 		}
 	}
 }

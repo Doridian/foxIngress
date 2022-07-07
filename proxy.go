@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -34,11 +35,14 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 	hostname := strings.ToLower(vhostConn.Host())
 	vhostConn.Free()
 	backend, err := GetBackend(hostname, protocol)
-	if err != nil || backend == "" {
+	if err != nil || backend == nil {
 		log.Printf("Couldn't get backend for %s: %v", hostname, err)
 		return
 	}
-	upConn, err := net.DialTimeout("tcp", backend, time.Duration(10000)*time.Millisecond)
+
+	ipport := fmt.Sprintf("%s:%d", backend.Host, backend.Port)
+
+	upConn, err := net.DialTimeout("tcp", ipport, time.Duration(10000)*time.Millisecond)
 	if err != nil {
 		log.Printf("Couldn't dial backend connection for %s: %v", hostname, err)
 		return

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +14,57 @@ import (
 
 	"github.com/inconshreveable/go-vhost"
 )
+
+// Last bit here indicates version 2, PROXIED
+var ProxyProtocolHeader = [13]byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A, 0b00100001}
+
+// These always indicate STREAM (TCP)
+const ProxyAFIPv4 = 0b00010001
+const ProxyAFIPv6 = 0b00100001
+
+// src address + src port + dst address + dst port
+const AddrLenIPv4 = (net.IPv4len + 2) * 2
+const AddrLenIPv6 = (net.IPv6len + 2) * 2
+
+type proxyProtocolPayload struct {
+	header   [13]byte
+	protocol byte
+	addrlen  uint16
+	srcaddr  []byte
+	dstaddr  []byte
+	srcport  uint16
+	dstport  uint16
+}
+
+func MakeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
+	srcAddr := conn.RemoteAddr().(*net.TCPAddr)
+	dstAddr := conn.LocalAddr().(*net.TCPAddr)
+
+	if len(srcAddr.IP) != len(dstAddr.IP) {
+		return nil, errors.New("Address family mismatch")
+	}
+
+	outBuf := bytes.Buffer{}
+	outBuf.Write(ProxyProtocolHeader[:])
+
+	switch len(srcAddr.IP) {
+	case net.IPv4len:
+		outBuf.WriteByte(ProxyAFIPv4)
+		binary.Write(&outBuf, binary.BigEndian, uint16(AddrLenIPv4))
+		outBuf.Write(srcAddr.IP.To4())
+		outBuf.Write(dstAddr.IP.To4())
+	case net.IPv6len:
+		outBuf.WriteByte(ProxyAFIPv6)
+		binary.Write(&outBuf, binary.BigEndian, uint16(AddrLenIPv6))
+		outBuf.Write(srcAddr.IP.To16())
+		outBuf.Write(dstAddr.IP.To16())
+	}
+
+	binary.Write(&outBuf, binary.BigEndian, uint16(srcAddr.Port))
+	binary.Write(&outBuf, binary.BigEndian, uint16(dstAddr.Port))
+
+	return outBuf.Bytes(), nil
+}
 
 func handleConnection(client net.Conn, protocol BackendProtocol) {
 	defer client.Close()
@@ -47,6 +100,20 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 		log.Printf("Couldn't dial backend connection for %s: %v", hostname, err)
 		return
 	}
+	defer upConn.Close()
+
+	if backend.ProxyProtocol {
+		data, err := MakeProxyProtocolPayload(client)
+		if err != nil {
+			log.Printf("Could not make PROXY protocol payload for %s: %v", hostname, err)
+			return
+		}
+		_, err = upConn.Write(data)
+		if err != nil {
+			log.Printf("Could not write PROXY protocol payload for %s: %v", hostname, err)
+			return
+		}
+	}
 
 	joinConnections(vhostConn, upConn)
 }
@@ -69,6 +136,7 @@ func halfJoin(wg *sync.WaitGroup, dst net.Conn, src net.Conn) {
 	}
 	log.Printf("Proxy copy from %v to %v failed with error %v", src.RemoteAddr(), dst.RemoteAddr(), err)
 }
+
 func joinConnections(c1 net.Conn, c2 net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)

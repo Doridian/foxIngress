@@ -26,22 +26,12 @@ const ProxyAFIPv6 = 0b00100001
 const AddrLenIPv4 = (net.IPv4len + 2) * 2
 const AddrLenIPv6 = (net.IPv6len + 2) * 2
 
-type proxyProtocolPayload struct {
-	header   [13]byte
-	protocol byte
-	addrlen  uint16
-	srcaddr  []byte
-	dstaddr  []byte
-	srcport  uint16
-	dstport  uint16
-}
-
 func MakeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
 	srcAddr := conn.RemoteAddr().(*net.TCPAddr)
 	dstAddr := conn.LocalAddr().(*net.TCPAddr)
 
 	if len(srcAddr.IP) != len(dstAddr.IP) {
-		return nil, errors.New("Address family mismatch")
+		return nil, errors.New("address family mismatch")
 	}
 
 	outBuf := bytes.Buffer{}

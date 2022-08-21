@@ -48,6 +48,8 @@ func MakeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
 		binary.Write(&outBuf, binary.BigEndian, uint16(AddrLenIPv6))
 		outBuf.Write(srcAddr.IP.To16())
 		outBuf.Write(dstAddr.IP.To16())
+	default:
+		return nil, errors.New("unknown address family")
 	}
 
 	binary.Write(&outBuf, binary.BigEndian, uint16(srcAddr.Port))

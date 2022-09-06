@@ -1,6 +1,6 @@
 module github.com/FoxDenHome/sni-vhost-proxy
 
-go 1.17
+go 1.19
 
 require (
 	github.com/inconshreveable/go-vhost v1.0.0

@@ -26,7 +26,7 @@ const ProxyAFIPv6 = 0b00100001
 const AddrLenIPv4 = (net.IPv4len + 2) * 2
 const AddrLenIPv6 = (net.IPv6len + 2) * 2
 
-func MakeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
+func makeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
 	srcAddr := conn.RemoteAddr().(*net.TCPAddr)
 	dstAddr := conn.LocalAddr().(*net.TCPAddr)
 
@@ -95,7 +95,7 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 	defer upConn.Close()
 
 	if backend.ProxyProtocol {
-		data, err := MakeProxyProtocolPayload(client)
+		data, err := makeProxyProtocolPayload(client)
 		if err != nil {
 			log.Printf("Could not make PROXY protocol payload for %s: %v", hostname, err)
 			return

@@ -27,15 +27,17 @@ type configBackend struct {
 }
 
 type configHost struct {
-	Http  configBackend `yaml:"http"`
-	Https configBackend `yaml:"https"`
+	Http     configBackend `yaml:"http"`
+	Https    configBackend `yaml:"https"`
+	Template string        `yaml:"template"`
 }
 
 type configBase struct {
 	Defaults struct {
 		Backends configHost `yaml:"backends"`
 	} `yaml:"defaults"`
-	Hosts map[string]configHost `yaml:"hosts"`
+	Templates map[string]configHost `yaml:"templates"`
+	Hosts     map[string]configHost `yaml:"hosts"`
 }
 
 type BackendInfo struct {
@@ -81,7 +83,12 @@ func LoadConfig() {
 	backendsHttp = make(map[string]*BackendInfo)
 	backendsHttps = make(map[string]*BackendInfo)
 
-	for host, hostConfig := range config.Hosts {
+	for host, rawHostConfig := range config.Hosts {
+		hostConfig := rawHostConfig
+		if rawHostConfig.Template != "" {
+			hostConfig = config.Templates[hostConfig.Template]
+		}
+
 		portHttp := hostConfig.Http.Port
 		if portHttp == 0 {
 			portHttp = config.Defaults.Backends.Http.Port

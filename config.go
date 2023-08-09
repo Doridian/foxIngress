@@ -20,23 +20,22 @@ const (
 
 const HOST_DEFAULT = "__default__"
 
-type configPorts struct {
-	Http  int `yaml:"http"`
-	Https int `yaml:"https"`
+type configBackend struct {
+	Host          string `yaml:"host"`
+	ProxyProtocol bool   `yaml:"proxy_protocol"`
+	Port          int    `yaml:"port"`
 }
 
 type configHost struct {
-	Target        string      `yaml:"target"`
-	ProxyProtocol bool        `yaml:"proxy_protocol"`
-	Ports         configPorts `yaml:"ports"`
+	Http  configBackend `yaml:"http"`
+	Https configBackend `yaml:"https"`
 }
 
 type configBase struct {
 	Defaults struct {
-		Ports configPorts `yaml:"ports"`
+		Backends configHost `yaml:"backends"`
 	} `yaml:"defaults"`
-	Aliases map[string]configHost `yaml:"aliases"`
-	Hosts   map[string]configHost `yaml:"hosts"`
+	Hosts map[string]configHost `yaml:"hosts"`
 }
 
 type BackendInfo struct {
@@ -62,17 +61,9 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 	return backend, nil
 }
 
-func tryMapHost(host *configHost, config *configBase) *configHost {
-	res, ok := config.Aliases[host.Target]
-	if !ok {
-		return host
-	}
-	return &res
-}
-
-func backendConfigFromConfigHost(host *configHost, port int) *BackendInfo {
+func backendConfigFromConfigHost(host *configBackend, port int) *BackendInfo {
 	return &BackendInfo{
-		Host:          host.Target,
+		Host:          host.Host,
 		Port:          port,
 		ProxyProtocol: host.ProxyProtocol,
 	}
@@ -90,23 +81,21 @@ func LoadConfig() {
 	backendsHttp = make(map[string]*BackendInfo)
 	backendsHttps = make(map[string]*BackendInfo)
 
-	for host, rawHostConfig := range config.Hosts {
-		hostConfig := tryMapHost(&rawHostConfig, &config)
-
-		portHttp := hostConfig.Ports.Http
+	for host, hostConfig := range config.Hosts {
+		portHttp := hostConfig.Http.Port
 		if portHttp == 0 {
-			portHttp = config.Defaults.Ports.Http
+			portHttp = config.Defaults.Backends.Http.Port
 		}
 		if portHttp > 0 {
-			backendsHttp[host] = backendConfigFromConfigHost(hostConfig, portHttp)
+			backendsHttp[host] = backendConfigFromConfigHost(&hostConfig.Http, portHttp)
 		}
 
-		portHttps := hostConfig.Ports.Https
+		portHttps := hostConfig.Https.Port
 		if portHttps == 0 {
-			portHttps = config.Defaults.Ports.Https
+			portHttps = config.Defaults.Backends.Https.Port
 		}
 		if portHttps > 0 {
-			backendsHttps[host] = backendConfigFromConfigHost(hostConfig, portHttps)
+			backendsHttps[host] = backendConfigFromConfigHost(&hostConfig.Https, portHttps)
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -163,10 +164,10 @@ func main() {
 	LoadConfig()
 
 	httpDone := make(chan int)
-	go doProxy(httpDone, ":80", handleHTTPConnection)
+	go doProxy(httpDone, os.Getenv("HTTP_ADDR"), handleHTTPConnection)
 
 	httpsDone := make(chan int)
-	go doProxy(httpsDone, ":443", handleHTTPSConnection)
+	go doProxy(httpsDone, os.Getenv("HTTPS_ADDR"), handleHTTPSConnection)
 
 	<-httpDone
 	<-httpsDone

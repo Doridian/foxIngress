@@ -22,9 +22,10 @@ const (
 const HOST_DEFAULT = "__default__"
 
 type configBackend struct {
-	Host          string `yaml:"host"`
-	ProxyProtocol bool   `yaml:"proxy_protocol"`
-	Port          int    `yaml:"port"`
+	Host            string `yaml:"host"`
+	ProxyProtocol   bool   `yaml:"proxy_protocol"`
+	Port            int    `yaml:"port"`
+	HostPassthrough bool   `yaml:"host_passthrough"`
 }
 
 type configHost struct {
@@ -42,9 +43,10 @@ type configBase struct {
 }
 
 type BackendInfo struct {
-	Host          string
-	ProxyProtocol bool
-	Port          int
+	Host            string
+	ProxyProtocol   bool
+	Port            int
+	HostPassthrough bool
 }
 
 func findBackend(hostname string, backends map[string]*BackendInfo) *BackendInfo {
@@ -79,9 +81,10 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 
 func backendConfigFromConfigHost(host *configBackend, port int) *BackendInfo {
 	return &BackendInfo{
-		Host:          host.Host,
-		Port:          port,
-		ProxyProtocol: host.ProxyProtocol,
+		Host:            host.Host,
+		Port:            port,
+		ProxyProtocol:   host.ProxyProtocol,
+		HostPassthrough: host.HostPassthrough,
 	}
 }
 

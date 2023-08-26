@@ -86,7 +86,12 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 		return
 	}
 
-	ipport := fmt.Sprintf("%s:%d", backend.Host, backend.Port)
+	useHost := backend.Host
+	if backend.HostPassthrough {
+		useHost = hostname
+	}
+
+	ipport := fmt.Sprintf("%s:%d", useHost, backend.Port)
 
 	upConn, err := net.DialTimeout("tcp", ipport, time.Duration(10000)*time.Millisecond)
 	if err != nil {

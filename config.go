@@ -51,7 +51,7 @@ func findBackend(hostname string, backends map[string]*BackendInfo) *BackendInfo
 	backend, ok := backends[hostname]
 	if !ok {
 		hostSplit := strings.Split(hostname, ".")
-		if hostSplit[0] == "*" {
+		if hostSplit[0] == "_" {
 			hostSplit = hostSplit[2:]
 		} else {
 			hostSplit = hostSplit[1:]
@@ -59,7 +59,7 @@ func findBackend(hostname string, backends map[string]*BackendInfo) *BackendInfo
 		if len(hostSplit) == 0 {
 			return backends[HOST_DEFAULT]
 		}
-		return findBackend("*."+strings.Join(hostSplit, "."), backends)
+		return findBackend("_."+strings.Join(hostSplit, "."), backends)
 	}
 	return backend
 }

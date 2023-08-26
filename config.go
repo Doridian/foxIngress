@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -46,6 +47,23 @@ type BackendInfo struct {
 	Port          int
 }
 
+func findBackend(hostname string, backends map[string]*BackendInfo) *BackendInfo {
+	backend, ok := backends[hostname]
+	if !ok {
+		hostSplit := strings.Split(hostname, ".")
+		if hostSplit[0] == "*" {
+			hostSplit = hostSplit[2:]
+		} else {
+			hostSplit = hostSplit[1:]
+		}
+		if len(hostSplit) == 0 {
+			return backends[HOST_DEFAULT]
+		}
+		return findBackend("*."+strings.Join(hostSplit, "."), backends)
+	}
+	return backend
+}
+
 func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error) {
 	var backends map[string]*BackendInfo
 	switch protocol {
@@ -56,11 +74,7 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 	default:
 		return nil, errors.New("invalid protocol")
 	}
-	backend, ok := backends[hostname]
-	if !ok {
-		return backends[HOST_DEFAULT], nil
-	}
-	return backend, nil
+	return findBackend(hostname, backends), nil
 }
 
 func backendConfigFromConfigHost(host *configBackend, port int) *BackendInfo {

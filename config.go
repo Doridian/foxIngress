@@ -51,19 +51,20 @@ type BackendInfo struct {
 
 func findBackend(hostname string, backends map[string]*BackendInfo) *BackendInfo {
 	backend, ok := backends[hostname]
-	if !ok {
-		hostSplit := strings.Split(hostname, ".")
-		if hostSplit[0] == "_" {
-			hostSplit = hostSplit[2:]
-		} else {
-			hostSplit = hostSplit[1:]
-		}
-		if len(hostSplit) == 0 {
-			return backends[HOST_DEFAULT]
-		}
-		return findBackend("_."+strings.Join(hostSplit, "."), backends)
+	if ok {
+		return backend
 	}
-	return backend
+
+	hostSplit := strings.Split(hostname, ".")
+	if hostSplit[0] == "_" {
+		hostSplit = hostSplit[2:]
+	} else {
+		hostSplit = hostSplit[1:]
+	}
+	if len(hostSplit) == 0 {
+		return backends[HOST_DEFAULT]
+	}
+	return findBackend("_."+strings.Join(hostSplit, "."), backends)
 }
 
 func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error) {

@@ -81,8 +81,13 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 	hostname := strings.ToLower(vhostConn.Host())
 	vhostConn.Free()
 	backend, err := GetBackend(hostname, protocol)
-	if err != nil || backend == nil {
+	if err != nil {
 		log.Printf("Couldn't get backend for %s: %v", hostname, err)
+		return
+	}
+
+	if backend == nil {
+		// This means we don't want to handle the connection
 		return
 	}
 

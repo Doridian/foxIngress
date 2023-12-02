@@ -10,7 +10,7 @@ RUN upx proxy -o proxy-compressed
 
 FROM scratch AS base
 EXPOSE 80 443
-ENV CONFIG_FILE=/etc/config.yml
+ENV CONFIG_FILE=/config/config.yml
 ENV HTTP_ADDR=:80
 ENV HTTPS_ADDR=:443
 ENTRYPOINT [ "/proxy" ]

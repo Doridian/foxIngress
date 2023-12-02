@@ -5,7 +5,7 @@ RUN apk --no-cache add upx
 COPY . /go/src/app
 WORKDIR /go/src/app
 ENV CGO_ENABLED=0
-RUN go mod download && go build -o proxy
+RUN go mod download && go build -ldflags='-s -w' -trimpath -o proxy
 RUN upx -9 proxy -o proxy-compressed
 
 FROM scratch AS base

@@ -23,12 +23,24 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build container image
+      - name: Build uncompressed/main container image
         uses: docker/build-push-action@v5
         with:
           platforms: linux/amd64,linux/arm64
           push: true
+          target: uncompressed
           build-args: |
             GIT_REVISION=${{ github.sha }}
           tags: |
             ghcr.io/foxdenhome/sni-vhost-proxy/sni-vhost-proxy:latest
+      - name: Build compressed container image
+        uses: docker/build-push-action@v5
+        with:
+          platforms: linux/amd64,linux/arm64
+          push: true
+          target: compressed
+          build-args: |
+            GIT_REVISION=${{ github.sha }}
+          tags: |
+            ghcr.io/foxdenhome/sni-vhost-proxy/sni-vhost-proxy:compressed
+  

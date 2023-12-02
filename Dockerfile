@@ -1,13 +1,22 @@
 FROM golang:alpine AS builder
+
+RUN apk --no-cache add upx
+
 COPY . /go/src/app
 WORKDIR /go/src/app
 ENV CGO_ENABLED=0
 RUN go mod download && go build -o proxy
+RUN upx proxy -o proxy-compressed
 
-FROM scratch
-COPY --from=builder /go/src/app/proxy /proxy
+FROM scratch AS base
 EXPOSE 80 443
 ENV CONFIG_FILE=/etc/config.yml
 ENV HTTP_ADDR=:80
 ENV HTTPS_ADDR=:443
 ENTRYPOINT [ "/proxy" ]
+
+FROM base AS compressed
+COPY --from=builder /go/src/app/proxy-compressed /proxy
+
+FROM base AS uncompressed
+COPY --from=builder /go/src/app/proxy /proxy

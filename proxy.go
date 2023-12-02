@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/FoxDenHome/sni-vhost-proxy/util"
 	"github.com/inconshreveable/go-vhost"
 )
 
@@ -26,6 +27,9 @@ const ProxyAFIPv6 = 0b00100001
 // src address + src port + dst address + dst port
 const AddrLenIPv4 = (net.IPv4len + 2) * 2
 const AddrLenIPv6 = (net.IPv6len + 2) * 2
+
+var initWait sync.WaitGroup
+var privilegeDropWait sync.WaitGroup
 
 func makeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
 	srcAddr := conn.RemoteAddr().(*net.TCPAddr)
@@ -153,11 +157,17 @@ func doProxy(done chan int, host string, handle func(net.Conn)) {
 		done <- 1
 		log.Panicf("listener goroutine ended unexpectedly")
 	}()
+
 	listener, err := net.Listen("tcp", host)
+	initWait.Done()
 	if err != nil {
 		log.Panicf("could not listen: %v", err)
 		return
 	}
+
+	log.Printf("Listener started on %s", host)
+	privilegeDropWait.Wait()
+
 	log.Printf("Server started on %s", host)
 	for {
 		connection, err := listener.Accept()
@@ -173,11 +183,19 @@ func doProxy(done chan int, host string, handle func(net.Conn)) {
 func main() {
 	LoadConfig()
 
+	privilegeDropWait.Add(1)
+
+	initWait.Add(1)
 	httpDone := make(chan int)
 	go doProxy(httpDone, os.Getenv("HTTP_ADDR"), handleHTTPConnection)
 
+	initWait.Add(1)
 	httpsDone := make(chan int)
 	go doProxy(httpsDone, os.Getenv("HTTPS_ADDR"), handleHTTPSConnection)
+
+	initWait.Wait()
+	util.DropPrivs()
+	privilegeDropWait.Done()
 
 	<-httpDone
 	<-httpsDone

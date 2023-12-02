@@ -6,7 +6,7 @@ COPY . /go/src/app
 WORKDIR /go/src/app
 ENV CGO_ENABLED=0
 RUN go mod download && go build -o proxy
-RUN upx proxy -o proxy-compressed
+RUN upx -9 proxy -o proxy-compressed
 
 FROM scratch AS base
 EXPOSE 80 443

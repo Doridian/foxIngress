@@ -11,6 +11,7 @@ import (
 
 var backendsHttp map[string]*BackendInfo
 var backendsHttps map[string]*BackendInfo
+var wildcardsEnabled = false
 
 type BackendProtocol int
 
@@ -53,6 +54,10 @@ func findBackend(hostname string, backends map[string]*BackendInfo) *BackendInfo
 	backend, ok := backends[hostname]
 	if ok {
 		return backend
+	}
+
+	if !wildcardsEnabled {
+		return backends[HOST_DEFAULT]
 	}
 
 	hostSplit := strings.Split(hostname, ".")
@@ -107,6 +112,10 @@ func LoadConfig() {
 			hostConfig = config.Templates[hostConfig.Template]
 		}
 
+		if !wildcardsEnabled && strings.HasPrefix(host, "_.") {
+			wildcardsEnabled = true
+		}
+
 		portHttp := hostConfig.Http.Port
 		if portHttp == 0 {
 			portHttp = config.Defaults.Backends.Http.Port
@@ -123,4 +132,6 @@ func LoadConfig() {
 			backendsHttps[host] = backendConfigFromConfigHost(&hostConfig.Https, portHttps)
 		}
 	}
+
+	log.Printf("Loaded config with %d HTTP host(s), %d HTTPS host(s), wildard matching %v", len(backendsHttp), len(backendsHttps), wildcardsEnabled)
 }

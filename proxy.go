@@ -78,7 +78,9 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 		return
 	}
 	if err != nil {
-		log.Printf("Error decoding protocol from %v: %v", client.RemoteAddr(), err)
+		if verbose {
+			log.Printf("Error decoding protocol from %v: %v", client.RemoteAddr(), err)
+		}
 		return
 	}
 
@@ -141,7 +143,9 @@ func halfJoin(wg *sync.WaitGroup, dst net.Conn, src net.Conn) {
 	if err == nil || errors.Is(err, net.ErrClosed) {
 		return
 	}
-	log.Printf("Proxy copy from %v to %v failed with error %v", src.RemoteAddr(), dst.RemoteAddr(), err)
+	if verbose {
+		log.Printf("Proxy copy from %v to %v failed with error %v", src.RemoteAddr(), dst.RemoteAddr(), err)
+	}
 }
 
 func joinConnections(c1 net.Conn, c2 net.Conn) {

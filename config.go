@@ -12,6 +12,7 @@ import (
 var backendsHttp map[string]*BackendInfo
 var backendsHttps map[string]*BackendInfo
 var wildcardsEnabled = false
+var verbose = false
 
 type BackendProtocol int
 
@@ -95,6 +96,10 @@ func backendConfigFromConfigHost(host *configBackend, port int) *BackendInfo {
 }
 
 func LoadConfig() {
+	if os.Getenv("VERBOSE") != "" {
+		verbose = true
+	}
+
 	file, err := os.Open(os.Getenv("CONFIG_FILE"))
 	if err != nil {
 		log.Panicf("Could not open config file: %v", err)

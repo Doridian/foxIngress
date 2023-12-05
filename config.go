@@ -138,5 +138,5 @@ func LoadConfig() {
 		}
 	}
 
-	log.Printf("Loaded config with %d HTTP host(s), %d HTTPS host(s), wildard matching %v", len(backendsHttp), len(backendsHttps), wildcardsEnabled)
+	log.Printf("Loaded config with %d HTTP host(s), %d HTTPS host(s), wildard matching %v, verbose %v", len(backendsHttp), len(backendsHttps), wildcardsEnabled, verbose)
 }

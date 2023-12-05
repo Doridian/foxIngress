@@ -1,5 +1,4 @@
 # sni-vhost-proxy
-============
 
 A simple routing proxy in Go.  Accepts incoming connections on ports 80 and 443.
 

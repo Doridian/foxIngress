@@ -51,14 +51,14 @@ type BackendInfo struct {
 	HostPassthrough bool
 }
 
-func findBackend(hostname string, backends map[string]*BackendInfo) *BackendInfo {
+func findBackend(hostname string, backends map[string]*BackendInfo) (*BackendInfo, error) {
 	backend, ok := backends[hostname]
 	if ok {
-		return backend
+		return backend, nil
 	}
 
 	if !wildcardsEnabled {
-		return backends[HOST_DEFAULT]
+		return backends[HOST_DEFAULT], nil
 	}
 
 	hostSplit := strings.Split(hostname, ".")
@@ -68,7 +68,7 @@ func findBackend(hostname string, backends map[string]*BackendInfo) *BackendInfo
 		hostSplit = hostSplit[1:]
 	}
 	if len(hostSplit) == 0 {
-		return backends[HOST_DEFAULT]
+		return backends[HOST_DEFAULT], nil
 	}
 	return findBackend("_."+strings.Join(hostSplit, "."), backends)
 }
@@ -83,7 +83,7 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 	default:
 		return nil, errors.New("invalid protocol")
 	}
-	return findBackend(hostname, backends), nil
+	return findBackend(hostname, backends)
 }
 
 func backendConfigFromConfigHost(host *configBackend, port int) *BackendInfo {

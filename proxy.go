@@ -35,14 +35,15 @@ func makeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
 	srcAddr := conn.RemoteAddr().(*net.TCPAddr)
 	dstAddr := conn.LocalAddr().(*net.TCPAddr)
 
-	if len(srcAddr.IP) != len(dstAddr.IP) {
-		return nil, errors.New("address family mismatch")
+	maxAddrLen := len(srcAddr.IP)
+	if len(dstAddr.IP) > maxAddrLen {
+		maxAddrLen = len(dstAddr.IP)
 	}
 
 	outBuf := bytes.Buffer{}
 	outBuf.Write(ProxyProtocolHeader[:])
 
-	switch len(srcAddr.IP) {
+	switch maxAddrLen {
 	case net.IPv4len:
 		outBuf.WriteByte(ProxyAFIPv4)
 		binary.Write(&outBuf, binary.BigEndian, uint16(AddrLenIPv4))
@@ -54,7 +55,7 @@ func makeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
 		outBuf.Write(srcAddr.IP.To16())
 		outBuf.Write(dstAddr.IP.To16())
 	default:
-		return nil, errors.New("unknown address family")
+		return nil, fmt.Errorf("unknown address family len %d", maxAddrLen)
 	}
 
 	binary.Write(&outBuf, binary.BigEndian, uint16(srcAddr.Port))

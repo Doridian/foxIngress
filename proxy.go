@@ -29,6 +29,7 @@ const AddrLenIPv4 = (net.IPv4len + 2) * 2
 const AddrLenIPv6 = (net.IPv6len + 2) * 2
 
 var initWait sync.WaitGroup
+var listenerClosedWait sync.WaitGroup
 var privilegeDropWait sync.WaitGroup
 
 func makeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
@@ -149,9 +150,9 @@ func joinConnections(c1 net.Conn, c2 net.Conn) {
 	wg.Wait()
 }
 
-func doProxy(done chan int, host string, protocol BackendProtocol) {
+func doProxy(host string, protocol BackendProtocol) {
 	defer func() {
-		done <- 1
+		listenerClosedWait.Done()
 		log.Panicf("listener goroutine ended unexpectedly")
 	}()
 
@@ -182,18 +183,14 @@ func main() {
 
 	privilegeDropWait.Add(1)
 
-	initWait.Add(1)
-	httpDone := make(chan int)
-	go doProxy(httpDone, os.Getenv("HTTP_ADDR"), PROTO_HTTP)
-
-	initWait.Add(1)
-	httpsDone := make(chan int)
-	go doProxy(httpsDone, os.Getenv("HTTPS_ADDR"), PROTO_HTTPS)
+	initWait.Add(2)
+	listenerClosedWait.Add(2)
+	go doProxy(os.Getenv("HTTP_ADDR"), PROTO_HTTP)
+	go doProxy(os.Getenv("HTTPS_ADDR"), PROTO_HTTPS)
 
 	initWait.Wait()
 	util.DropPrivs()
 	privilegeDropWait.Done()
 
-	<-httpDone
-	<-httpsDone
+	listenerClosedWait.Wait()
 }

@@ -128,14 +128,6 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 	joinConnections(vhostConn, upConn)
 }
 
-func handleHTTPConnection(client net.Conn) {
-	handleConnection(client, PROTO_HTTP)
-}
-
-func handleHTTPSConnection(client net.Conn) {
-	handleConnection(client, PROTO_HTTPS)
-}
-
 func halfJoin(wg *sync.WaitGroup, dst net.Conn, src net.Conn) {
 	defer wg.Done()
 	defer dst.Close()
@@ -157,7 +149,7 @@ func joinConnections(c1 net.Conn, c2 net.Conn) {
 	wg.Wait()
 }
 
-func doProxy(done chan int, host string, handle func(net.Conn)) {
+func doProxy(done chan int, host string, protocol BackendProtocol) {
 	defer func() {
 		done <- 1
 		log.Panicf("listener goroutine ended unexpectedly")
@@ -181,7 +173,7 @@ func doProxy(done chan int, host string, handle func(net.Conn)) {
 			return
 		}
 
-		go handle(connection)
+		go handleConnection(connection, protocol)
 	}
 }
 
@@ -192,11 +184,11 @@ func main() {
 
 	initWait.Add(1)
 	httpDone := make(chan int)
-	go doProxy(httpDone, os.Getenv("HTTP_ADDR"), handleHTTPConnection)
+	go doProxy(httpDone, os.Getenv("HTTP_ADDR"), PROTO_HTTP)
 
 	initWait.Add(1)
 	httpsDone := make(chan int)
-	go doProxy(httpsDone, os.Getenv("HTTPS_ADDR"), handleHTTPSConnection)
+	go doProxy(httpsDone, os.Getenv("HTTPS_ADDR"), PROTO_HTTPS)
 
 	initWait.Wait()
 	util.DropPrivs()

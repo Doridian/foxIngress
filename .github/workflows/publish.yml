@@ -24,7 +24,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build uncompressed/main container image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm64
           push: true
@@ -34,7 +34,7 @@ jobs:
           tags: |
             ghcr.io/foxdenhome/sni-vhost-proxy/sni-vhost-proxy:latest
       - name: Build compressed container image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm64
           push: true

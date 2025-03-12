@@ -108,6 +108,10 @@ func (c *Conn) beReader() {
 }
 
 func (c *Conn) handlePacket(buf []byte) {
+	if !c.open {
+		return
+	}
+
 	if c.beConn == nil {
 		c.handleInitial(buf)
 		if c.beConn == nil {

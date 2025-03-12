@@ -17,9 +17,7 @@ templates:
     default:
       host: 10.3.3.3
     http:
-      port: 8080
-    quic:
-      port: -1
+      port: -1 # Disable HTTP
 hosts:
   test.example.com:
     template: test

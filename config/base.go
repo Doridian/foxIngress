@@ -93,10 +93,6 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 }
 
 func loadBackendConfig(cfgs ...*backendInfoEncoded) *BackendInfo {
-	if cfgs == nil {
-		return nil
-	}
-
 	host := ""
 	port := 0
 	var proxyProto *bool = nil

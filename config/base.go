@@ -165,17 +165,17 @@ func Load() {
 			wildcardsEnabled = true
 		}
 
-		cfg := loadBackendConfig(hostConfig.Http, hostConfig.Default, config.Defaults.Backends.Http)
+		cfg := loadBackendConfig(hostConfig.Http, hostConfig.Default, config.Defaults.Backends.Http, config.Defaults.Backends.Default)
 		if cfg != nil {
 			backendsHttp[host] = cfg
 		}
 
-		cfg = loadBackendConfig(hostConfig.Https, hostConfig.Default, config.Defaults.Backends.Https)
+		cfg = loadBackendConfig(hostConfig.Https, hostConfig.Default, config.Defaults.Backends.Https, config.Defaults.Backends.Default)
 		if cfg != nil {
 			backendsHttps[host] = cfg
 		}
 
-		cfg = loadBackendConfig(hostConfig.Quic, hostConfig.Default, config.Defaults.Backends.Quic)
+		cfg = loadBackendConfig(hostConfig.Quic, hostConfig.Default, config.Defaults.Backends.Quic, config.Defaults.Backends.Default)
 		if cfg != nil {
 			backendsQuic[host] = cfg
 		}

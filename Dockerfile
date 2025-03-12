@@ -29,7 +29,7 @@ ENV PGID=1000
 ENTRYPOINT [ "/proxy" ]
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS compressed
-COPY --from=builder /proxy-compressed /proxy
+COPY --from=compressor /proxy-compressed /proxy
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS uncompressed
 COPY --from=builder /proxy /proxy

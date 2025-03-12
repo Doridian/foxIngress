@@ -81,7 +81,7 @@ func (l *Listener) reader() {
 		}
 		l.connLock.Unlock()
 
-		conn.handlePacket(buf[:n])
+		go conn.handlePacket(buf[:n])
 	}
 }
 

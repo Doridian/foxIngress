@@ -3,6 +3,7 @@ package udpconn
 import (
 	"context"
 	"errors"
+	"log"
 	"net"
 	"sync"
 )
@@ -59,29 +60,35 @@ func (l *Listener) removeConn(conn *Conn) {
 	delete(l.conns, conn.remoteAddr.String())
 }
 
+func (l *Listener) handlePacket(buf []byte, addr *net.UDPAddr) {
+	connKey := addr.String()
+
+	l.connLock.Lock()
+	conn, ok := l.conns[connKey]
+	if !ok || !conn.open {
+		conn = &Conn{
+			remoteAddr: addr,
+			listener:   l,
+			open:       true,
+		}
+		l.conns[connKey] = conn
+	}
+	l.connLock.Unlock()
+
+	conn.handlePacket(buf)
+}
+
 func (l *Listener) reader() {
 	buf := make([]byte, 65535)
 	for l.running {
 		n, addr, err := l.listener.ReadFromUDP(buf)
 		if err != nil {
+			log.Printf("Error reading from UDP: %v", err)
+			_ = l.Close()
 			return
 		}
 
-		connKey := addr.String()
-
-		l.connLock.Lock()
-		conn, ok := l.conns[connKey]
-		if !ok || !conn.open {
-			conn = &Conn{
-				remoteAddr: addr,
-				listener:   l,
-				open:       true,
-			}
-			l.conns[connKey] = conn
-		}
-		l.connLock.Unlock()
-
-		go conn.handlePacket(buf[:n])
+		go l.handlePacket(buf[:n], addr)
 	}
 }
 

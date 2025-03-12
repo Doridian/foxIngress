@@ -35,6 +35,8 @@ func doProxy(host string, proto config.BackendProtocol) {
 }
 
 func main() {
+	log.Printf("foxDNS version %s", util.Version)
+
 	config.Load()
 
 	privilegeDropWait.Add(1)

@@ -5,6 +5,8 @@ ARG BUILDPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
 
+ARG GIT_REVISION=dev
+
 ENV CGO_ENABLED=0
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
@@ -14,7 +16,7 @@ COPY go.mod go.sum /src/
 RUN go mod download
 
 COPY . /src
-RUN go build -ldflags='-s -w' -trimpath -o /foxIngress ./cmd/foxIngress
+RUN go build -ldflags="-s -w -X=github.com/Doridian/foxIngress/util.Version=${GIT_REVISION}" -trimpath -o /foxIngress ./cmd/foxIngress
 
 FROM alpine AS compressor
 RUN apk add --no-cache upx

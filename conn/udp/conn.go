@@ -1,4 +1,4 @@
-package udpconn
+package udp
 
 import (
 	"fmt"
@@ -32,7 +32,9 @@ func (c *Conn) handleInitial(buf []byte) {
 
 	qHello, err := clienthellod.ParseQUICCIP(buf)
 	if err != nil {
-		log.Printf("Error parsing QUIC IP: %v", err)
+		if config.Verbose {
+			log.Printf("Error parsing QUIC IP: %v", err)
+		}
 		return
 	}
 
@@ -91,7 +93,9 @@ func (c *Conn) beReader() {
 	for c.open {
 		n, _, err := c.beConn.ReadFromUDP(buf)
 		if err != nil {
-			log.Printf("Error reading from backend: %v", err)
+			if config.Verbose {
+				log.Printf("Error reading from backend: %v", err)
+			}
 			_ = c.Close()
 			return
 		}
@@ -100,7 +104,9 @@ func (c *Conn) beReader() {
 
 		_, err = c.Write(buf[:n])
 		if err != nil {
-			log.Printf("Error writing to client: %v", err)
+			if config.Verbose {
+				log.Printf("Error writing to client: %v", err)
+			}
 			_ = c.Close()
 			return
 		}
@@ -122,7 +128,9 @@ func (c *Conn) handlePacket(buf []byte) {
 
 	_, err := c.beConn.Write(buf)
 	if err != nil {
-		log.Printf("Error writing to backend: %v", err)
+		if config.Verbose {
+			log.Printf("Error writing to backend: %v", err)
+		}
 		_ = c.Close()
 		return
 	}
@@ -142,7 +150,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		return 0, net.ErrClosed
 	}
 
-	return c.listener.listener.WriteToUDP(b, c.remoteAddr)
+	return c.listener.udpConn.WriteToUDP(b, c.remoteAddr)
 }
 
 func (c *Conn) LocalAddr() *net.UDPAddr {

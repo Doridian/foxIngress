@@ -1,15 +1,20 @@
-package udpconn
+package udp
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"sync"
+
+	"github.com/Doridian/foxIngress/config"
+	"github.com/Doridian/foxIngress/conn"
 )
 
 type Listener struct {
-	addr     *net.UDPAddr
-	listener *net.UDPConn
+	addr    *net.UDPAddr
+	udpConn *net.UDPConn
+	proto   config.BackendProtocol
 
 	listenCtx    context.Context
 	listenCancel context.CancelFunc
@@ -18,6 +23,8 @@ type Listener struct {
 	connLock sync.Mutex
 	conns    map[string]*Conn
 }
+
+var _ conn.Listener = &Listener{}
 
 func (l *Listener) Start() {
 	// Yeah, this is a hack
@@ -30,7 +37,11 @@ func (l *Listener) Start() {
 	<-l.listenCtx.Done()
 }
 
-func NewListener(addr string) (*Listener, error) {
+func NewListener(addr string, proto config.BackendProtocol) (*Listener, error) {
+	if proto != config.PROTO_QUIC {
+		return nil, errors.New("UDP listener only supports QUIC")
+	}
+
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return nil, err
@@ -42,9 +53,10 @@ func NewListener(addr string) (*Listener, error) {
 	}
 
 	l := &Listener{
-		addr:     udpAddr,
-		listener: conn,
-		conns:    make(map[string]*Conn),
+		addr:    udpAddr,
+		proto:   proto,
+		udpConn: conn,
+		conns:   make(map[string]*Conn),
 	}
 	return l, nil
 }
@@ -79,7 +91,7 @@ func (l *Listener) handlePacket(buf []byte, addr *net.UDPAddr) {
 func (l *Listener) reader() {
 	buf := make([]byte, 65535)
 	for l.running {
-		n, addr, err := l.listener.ReadFromUDP(buf)
+		n, addr, err := l.udpConn.ReadFromUDP(buf)
 		if err != nil {
 			log.Printf("Error reading from UDP: %v", err)
 			_ = l.Close()
@@ -104,5 +116,5 @@ func (l *Listener) Close() error {
 		_ = conn.Close()
 	}
 
-	return l.listener.Close()
+	return l.udpConn.Close()
 }

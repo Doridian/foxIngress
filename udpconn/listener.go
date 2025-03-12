@@ -60,9 +60,9 @@ func (l *Listener) removeConn(conn *Conn) {
 }
 
 func (l *Listener) reader() {
+	buf := make([]byte, 65535)
 	for l.running {
-		buf := make([]byte, 4096)
-		_, addr, err := l.listener.ReadFromUDP(buf)
+		n, addr, err := l.listener.ReadFromUDP(buf)
 		if err != nil {
 			return
 		}
@@ -81,7 +81,7 @@ func (l *Listener) reader() {
 		}
 		l.connLock.Unlock()
 
-		conn.handlePacket(buf)
+		conn.handlePacket(buf[:n])
 	}
 }
 

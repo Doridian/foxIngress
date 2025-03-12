@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/FoxDenHome/sni-vhost-proxy/config"
-	"github.com/FoxDenHome/sni-vhost-proxy/udpconn"
-	"github.com/FoxDenHome/sni-vhost-proxy/util"
+	"github.com/Doridian/foxIngress/config"
+	"github.com/Doridian/foxIngress/udpconn"
+	"github.com/Doridian/foxIngress/util"
 	"github.com/inconshreveable/go-vhost"
 )
 

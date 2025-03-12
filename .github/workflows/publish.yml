@@ -38,7 +38,7 @@ jobs:
           build-args: |
             GIT_REVISION=${{ github.sha }}
           tags: |
-            ghcr.io/foxdenhome/sni-vhost-proxy/sni-vhost-proxy:latest
+            ghcr.io/doridian/foxingress/foxingress:latest
       - name: Build compressed container image
         uses: docker/build-push-action@v6
         with:
@@ -48,5 +48,5 @@ jobs:
           build-args: |
             GIT_REVISION=${{ github.sha }}
           tags: |
-            ghcr.io/foxdenhome/sni-vhost-proxy/sni-vhost-proxy:compressed
+            ghcr.io/doridian/foxingress/foxingress:compressed
   

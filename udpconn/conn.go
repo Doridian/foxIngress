@@ -6,8 +6,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/FoxDenHome/sni-vhost-proxy/config"
-	"github.com/FoxDenHome/sni-vhost-proxy/util"
+	"github.com/Doridian/foxIngress/config"
+	"github.com/Doridian/foxIngress/util"
 	"github.com/gaukas/clienthellod"
 )
 

@@ -1,4 +1,4 @@
-module github.com/FoxDenHome/sni-vhost-proxy
+module github.com/Doridian/foxIngress
 
 go 1.19
 

@@ -14,22 +14,22 @@ COPY go.mod go.sum /src/
 RUN go mod download
 
 COPY . /src
-RUN go build -ldflags='-s -w' -trimpath -o /proxy
+RUN go build -ldflags='-s -w' -trimpath -o /foxIngress
 
 FROM alpine AS compressor
 RUN apk add --no-cache upx
-COPY --from=builder /proxy /proxy
-RUN upx -9 /proxy -o /proxy-compressed
+COPY --from=builder /foxIngress /foxIngress
+RUN upx -9 /foxIngress -o /foxIngress-compressed
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} scratch AS base
 EXPOSE 80 443 443/udp
 ENV CONFIG_FILE=/config/config.yml
 ENV PUID=1000
 ENV PGID=1000
-ENTRYPOINT [ "/proxy" ]
+ENTRYPOINT [ "/foxIngress" ]
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS compressed
-COPY --from=compressor /proxy-compressed /proxy
+COPY --from=compressor /foxIngress-compressed /foxIngress
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS uncompressed
-COPY --from=builder /proxy /proxy
+COPY --from=builder /foxIngress /foxIngress

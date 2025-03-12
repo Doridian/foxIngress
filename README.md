@@ -1,4 +1,4 @@
-# sni-vhost-proxy
+# foxIngress
 
 Host-based HTTP(S) router. It can determine the target hostname (and route) connections using the following protocols.
 

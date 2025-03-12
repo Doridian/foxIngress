@@ -1,8 +1,6 @@
 package udpconn
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
@@ -60,7 +58,7 @@ func (c *Conn) handleInitial(buf []byte) {
 	}
 
 	if c.backend.ProxyProtocol {
-		payload, err := c.makeProxyProtocolPayload()
+		payload, err := util.MakeProxyProtocolPayload(c.RemoteAddr().AddrPort(), c.LocalAddr().AddrPort())
 		if err != nil {
 			log.Printf("Error making proxy protocol payload: %v", err)
 			_ = c.Close()
@@ -129,7 +127,6 @@ func (c *Conn) Close() error {
 	if c.beConn != nil {
 		_ = c.beConn.Close()
 	}
-	log.Printf("Conn closed: %v -> %v", c.LocalAddr(), c.RemoteAddr()) // TODO: remove
 	return nil
 }
 
@@ -141,43 +138,10 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	return c.listener.listener.WriteToUDP(b, c.remoteAddr)
 }
 
-func (c *Conn) LocalAddr() net.Addr {
+func (c *Conn) LocalAddr() *net.UDPAddr {
 	return c.listener.addr
 }
 
-func (c *Conn) RemoteAddr() net.Addr {
+func (c *Conn) RemoteAddr() *net.UDPAddr {
 	return c.remoteAddr
-}
-
-func (c *Conn) makeProxyProtocolPayload() ([]byte, error) {
-	srcAddr := c.RemoteAddr().(*net.UDPAddr)
-	dstAddr := c.LocalAddr().(*net.UDPAddr)
-
-	maxAddrLen := len(srcAddr.IP)
-	if len(dstAddr.IP) > maxAddrLen {
-		maxAddrLen = len(dstAddr.IP)
-	}
-
-	outBuf := bytes.Buffer{}
-	outBuf.Write(util.ProxyProtocolHeader[:])
-
-	switch maxAddrLen {
-	case net.IPv4len:
-		outBuf.WriteByte(util.ProxyAFIPv4)
-		binary.Write(&outBuf, binary.BigEndian, uint16(util.AddrLenIPv4))
-		outBuf.Write(srcAddr.IP.To4())
-		outBuf.Write(dstAddr.IP.To4())
-	case net.IPv6len:
-		outBuf.WriteByte(util.ProxyAFIPv6)
-		binary.Write(&outBuf, binary.BigEndian, uint16(util.AddrLenIPv6))
-		outBuf.Write(srcAddr.IP.To16())
-		outBuf.Write(dstAddr.IP.To16())
-	default:
-		return nil, fmt.Errorf("unknown address family len %d", maxAddrLen)
-	}
-
-	binary.Write(&outBuf, binary.BigEndian, uint16(srcAddr.Port))
-	binary.Write(&outBuf, binary.BigEndian, uint16(dstAddr.Port))
-
-	return outBuf.Bytes(), nil
 }

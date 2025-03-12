@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -22,39 +20,6 @@ import (
 var initWait sync.WaitGroup
 var listenerClosedWait sync.WaitGroup
 var privilegeDropWait sync.WaitGroup
-
-func makeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
-	srcAddr := conn.RemoteAddr().(*net.TCPAddr)
-	dstAddr := conn.LocalAddr().(*net.TCPAddr)
-
-	maxAddrLen := len(srcAddr.IP)
-	if len(dstAddr.IP) > maxAddrLen {
-		maxAddrLen = len(dstAddr.IP)
-	}
-
-	outBuf := bytes.Buffer{}
-	outBuf.Write(util.ProxyProtocolHeader[:])
-
-	switch maxAddrLen {
-	case net.IPv4len:
-		outBuf.WriteByte(util.ProxyAFIPv4)
-		binary.Write(&outBuf, binary.BigEndian, uint16(util.AddrLenIPv4))
-		outBuf.Write(srcAddr.IP.To4())
-		outBuf.Write(dstAddr.IP.To4())
-	case net.IPv6len:
-		outBuf.WriteByte(util.ProxyAFIPv6)
-		binary.Write(&outBuf, binary.BigEndian, uint16(util.AddrLenIPv6))
-		outBuf.Write(srcAddr.IP.To16())
-		outBuf.Write(dstAddr.IP.To16())
-	default:
-		return nil, fmt.Errorf("unknown address family len %d", maxAddrLen)
-	}
-
-	binary.Write(&outBuf, binary.BigEndian, uint16(srcAddr.Port))
-	binary.Write(&outBuf, binary.BigEndian, uint16(dstAddr.Port))
-
-	return outBuf.Bytes(), nil
-}
 
 func handleConnection(client net.Conn, protocol config.BackendProtocol) {
 	defer client.Close()
@@ -104,7 +69,7 @@ func handleConnection(client net.Conn, protocol config.BackendProtocol) {
 	defer upConn.Close()
 
 	if backend.ProxyProtocol {
-		data, err := makeProxyProtocolPayload(client)
+		data, err := util.MakeProxyProtocolPayload(client.RemoteAddr().(*net.TCPAddr).AddrPort(), client.LocalAddr().(*net.TCPAddr).AddrPort())
 		if err != nil {
 			log.Printf("Could not make PROXY protocol payload for %s: %v", hostname, err)
 			return

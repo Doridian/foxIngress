@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ var backendsHttp map[string]*BackendInfo
 var backendsHttps map[string]*BackendInfo
 var backendsQuic map[string]*BackendInfo
 var wildcardsEnabled = false
-var verbose = false
+var Verbose = false
 
 type BackendProtocol int
 
@@ -102,7 +102,7 @@ func backendConfigFromConfigHost(host *configBackend, port int) *BackendInfo {
 
 func LoadConfig() {
 	if os.Getenv("VERBOSE") != "" {
-		verbose = true
+		Verbose = true
 	}
 
 	file, err := os.Open(os.Getenv("CONFIG_FILE"))
@@ -115,6 +115,7 @@ func LoadConfig() {
 
 	backendsHttp = make(map[string]*BackendInfo)
 	backendsHttps = make(map[string]*BackendInfo)
+	backendsQuic = make(map[string]*BackendInfo)
 
 	for host, rawHostConfig := range config.Hosts {
 		hostConfig := rawHostConfig
@@ -151,5 +152,5 @@ func LoadConfig() {
 		}
 	}
 
-	log.Printf("Loaded config with %d HTTP host(s), %d HTTPS host(s), %d QUIC host(s), wildard matching %v, verbose %v", len(backendsHttp), len(backendsHttps), len(backendsQuic), wildcardsEnabled, verbose)
+	log.Printf("Loaded config with %d HTTP host(s), %d HTTPS host(s), %d QUIC host(s), wildard matching %v, verbose %v", len(backendsHttp), len(backendsHttps), len(backendsQuic), wildcardsEnabled, Verbose)
 }

@@ -1,10 +1,16 @@
 package udpconn
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
 	"log"
 	"net"
-	"sync"
 	"time"
+
+	"github.com/FoxDenHome/sni-vhost-proxy/config"
+	"github.com/FoxDenHome/sni-vhost-proxy/util"
+	"github.com/gaukas/clienthellod"
 )
 
 type Conn struct {
@@ -14,14 +20,81 @@ type Conn struct {
 
 	readerTimeout *time.Timer
 
-	packets    [][]byte
-	packetWait sync.Cond
-	readLock   sync.Mutex
+	backend *config.BackendInfo
+	beConn  *net.UDPConn
 }
 
-var _ net.Conn = &Conn{}
-
 var IdleTimeout = 60 * time.Second
+
+func (c *Conn) handleInitial(buf []byte) {
+	qHello, err := clienthellod.ParseQUICCIP(buf)
+	if err != nil {
+		log.Printf("Error parsing QUIC IP: %v", err)
+		return
+	}
+
+	serverName := qHello.QCH.ServerName
+	c.backend, err = config.GetBackend(serverName, config.PROTO_QUIC)
+	if err != nil {
+		log.Printf("Error finding backend: %v", err)
+		_ = c.Close()
+		return
+	}
+	if c.backend == nil {
+		log.Printf("No backend found for %s", serverName)
+		_ = c.Close()
+		return
+	}
+
+	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("[%s]:%d", c.backend.Host, c.backend.Port))
+	if err != nil {
+		log.Printf("Error resolving UDP address: %v", err)
+		_ = c.Close()
+		return
+	}
+	c.beConn, err = net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		log.Printf("Error dialing UDP: %v", err)
+		_ = c.Close()
+		return
+	}
+
+	if c.backend.ProxyProtocol {
+		payload, err := c.makeProxyProtocolPayload()
+		if err != nil {
+			log.Printf("Error making proxy protocol payload: %v", err)
+			_ = c.Close()
+			return
+		}
+		_, err = c.Write(payload)
+		if err != nil {
+			log.Printf("Error writing proxy protocol payload: %v", err)
+			_ = c.Close()
+			return
+		}
+	}
+
+	go c.beReader()
+}
+
+func (c *Conn) beReader() {
+	buf := make([]byte, 65536)
+	for c.open {
+		n, _, err := c.beConn.ReadFromUDP(buf)
+		if err != nil {
+			log.Printf("Error reading from backend: %v", err)
+			_ = c.Close()
+			return
+		}
+
+		_, err = c.Write(buf[:n])
+		if err != nil {
+			log.Printf("Error writing to client: %v", err)
+			_ = c.Close()
+			return
+		}
+	}
+}
 
 func (c *Conn) handlePacket(buf []byte) {
 	if c.readerTimeout == nil {
@@ -34,33 +107,30 @@ func (c *Conn) handlePacket(buf []byte) {
 		c.readerTimeout.Reset(IdleTimeout)
 	}
 
-	c.buf = append(c.buf, buf...)
-	c.packetWait.Broadcast()
+	if c.beConn == nil {
+		c.handleInitial(buf)
+		if c.beConn == nil {
+			_ = c.Close()
+			return
+		}
+	}
+
+	_, err := c.beConn.Write(buf)
+	if err != nil {
+		log.Printf("Error writing to backend: %v", err)
+		_ = c.Close()
+		return
+	}
 }
 
 func (c *Conn) Close() error {
 	c.open = false
-	c.packetWait.Broadcast()
 	c.listener.removeConn(c)
-	log.Printf("Conn closed: %v -> %v", c.LocalAddr(), c.RemoteAddr())
+	if c.beConn != nil {
+		_ = c.beConn.Close()
+	}
+	log.Printf("Conn closed: %v -> %v", c.LocalAddr(), c.RemoteAddr()) // TODO: remove
 	return nil
-}
-
-func (c *Conn) Read(b []byte) (n int, err error) {
-	c.readLock.Lock()
-	defer c.readLock.Unlock()
-
-	for len(c.buf) == 0 && c.open {
-		c.packetWait.Wait()
-	}
-
-	if !c.open {
-		return 0, net.ErrClosed
-	}
-
-	n = copy(b, c.buf)
-	c.buf = c.buf[n:]
-	return n, nil
 }
 
 func (c *Conn) Write(b []byte) (n int, err error) {
@@ -79,14 +149,35 @@ func (c *Conn) RemoteAddr() net.Addr {
 	return c.remoteAddr
 }
 
-func (c *Conn) SetDeadline(t time.Time) error {
-	return nil
-}
+func (c *Conn) makeProxyProtocolPayload() ([]byte, error) {
+	srcAddr := c.RemoteAddr().(*net.UDPAddr)
+	dstAddr := c.LocalAddr().(*net.UDPAddr)
 
-func (c *Conn) SetReadDeadline(t time.Time) error {
-	return nil
-}
+	maxAddrLen := len(srcAddr.IP)
+	if len(dstAddr.IP) > maxAddrLen {
+		maxAddrLen = len(dstAddr.IP)
+	}
 
-func (c *Conn) SetWriteDeadline(t time.Time) error {
-	return nil
+	outBuf := bytes.Buffer{}
+	outBuf.Write(util.ProxyProtocolHeader[:])
+
+	switch maxAddrLen {
+	case net.IPv4len:
+		outBuf.WriteByte(util.ProxyAFIPv4)
+		binary.Write(&outBuf, binary.BigEndian, uint16(util.AddrLenIPv4))
+		outBuf.Write(srcAddr.IP.To4())
+		outBuf.Write(dstAddr.IP.To4())
+	case net.IPv6len:
+		outBuf.WriteByte(util.ProxyAFIPv6)
+		binary.Write(&outBuf, binary.BigEndian, uint16(util.AddrLenIPv6))
+		outBuf.Write(srcAddr.IP.To16())
+		outBuf.Write(dstAddr.IP.To16())
+	default:
+		return nil, fmt.Errorf("unknown address family len %d", maxAddrLen)
+	}
+
+	binary.Write(&outBuf, binary.BigEndian, uint16(srcAddr.Port))
+	binary.Write(&outBuf, binary.BigEndian, uint16(dstAddr.Port))
+
+	return outBuf.Bytes(), nil
 }

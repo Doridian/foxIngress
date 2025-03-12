@@ -1,4 +1,3 @@
 /sni-vhost-proxy
 *.exe
-/config
 /config.yml

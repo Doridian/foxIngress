@@ -2,6 +2,7 @@ package udpconn
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 )
@@ -14,9 +15,20 @@ type Listener struct {
 	listenCancel context.CancelFunc
 	running      bool
 
-	connLock  sync.Mutex
-	conns     map[string]*Conn
-	connQueue chan *Conn
+	connLock sync.Mutex
+	conns    map[string]*Conn
+}
+
+func (l *Listener) Accept() (net.Conn, error) {
+	// Yeah, this is a hack
+	if l.listenCancel == nil {
+		l.listenCtx, l.listenCancel = context.WithCancel(context.Background())
+		l.running = true
+		go l.reader()
+	}
+
+	<-l.listenCtx.Done()
+	return nil, errors.New("listener closed")
 }
 
 var _ net.Listener = &Listener{}
@@ -33,14 +45,10 @@ func NewListener(addr string) (*Listener, error) {
 	}
 
 	l := &Listener{
-		addr:      udpAddr,
-		listener:  conn,
-		conns:     make(map[string]*Conn),
-		connQueue: make(chan *Conn, 1024),
-		running:   true,
+		addr:     udpAddr,
+		listener: conn,
+		conns:    make(map[string]*Conn),
 	}
-	l.listenCtx, l.listenCancel = context.WithCancel(context.Background())
-	go l.reader()
 	return l, nil
 }
 
@@ -67,25 +75,13 @@ func (l *Listener) reader() {
 			conn = &Conn{
 				remoteAddr: addr,
 				listener:   l,
+				open:       true,
 			}
 			l.conns[connKey] = conn
 		}
 		l.connLock.Unlock()
 
 		conn.handlePacket(buf)
-
-		<-l.connQueue
-	}
-}
-
-func (l *Listener) Accept() (net.Conn, error) {
-	for {
-		select {
-		case conn := <-l.connQueue:
-			return conn, nil
-		case <-l.listenCtx.Done():
-			return nil, l.listenCtx.Err()
-		}
 	}
 }
 

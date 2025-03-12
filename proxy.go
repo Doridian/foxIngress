@@ -13,22 +13,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/FoxDenHome/sni-vhost-proxy/config"
 	"github.com/FoxDenHome/sni-vhost-proxy/udpconn"
 	"github.com/FoxDenHome/sni-vhost-proxy/util"
-	"github.com/gaukas/clienthellod"
 	"github.com/inconshreveable/go-vhost"
 )
-
-// Last bit here indicates version 2, PROXIED
-var ProxyProtocolHeader = [13]byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A, 0b00100001}
-
-// These always indicate STREAM (TCP)
-const ProxyAFIPv4 = 0b00010001
-const ProxyAFIPv6 = 0b00100001
-
-// src address + src port + dst address + dst port
-const AddrLenIPv4 = (net.IPv4len + 2) * 2
-const AddrLenIPv6 = (net.IPv6len + 2) * 2
 
 var initWait sync.WaitGroup
 var listenerClosedWait sync.WaitGroup
@@ -44,17 +33,17 @@ func makeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
 	}
 
 	outBuf := bytes.Buffer{}
-	outBuf.Write(ProxyProtocolHeader[:])
+	outBuf.Write(util.ProxyProtocolHeader[:])
 
 	switch maxAddrLen {
 	case net.IPv4len:
-		outBuf.WriteByte(ProxyAFIPv4)
-		binary.Write(&outBuf, binary.BigEndian, uint16(AddrLenIPv4))
+		outBuf.WriteByte(util.ProxyAFIPv4)
+		binary.Write(&outBuf, binary.BigEndian, uint16(util.AddrLenIPv4))
 		outBuf.Write(srcAddr.IP.To4())
 		outBuf.Write(dstAddr.IP.To4())
 	case net.IPv6len:
-		outBuf.WriteByte(ProxyAFIPv6)
-		binary.Write(&outBuf, binary.BigEndian, uint16(AddrLenIPv6))
+		outBuf.WriteByte(util.ProxyAFIPv6)
+		binary.Write(&outBuf, binary.BigEndian, uint16(util.AddrLenIPv6))
 		outBuf.Write(srcAddr.IP.To16())
 		outBuf.Write(dstAddr.IP.To16())
 	default:
@@ -67,25 +56,22 @@ func makeProxyProtocolPayload(conn net.Conn) ([]byte, error) {
 	return outBuf.Bytes(), nil
 }
 
-func handleConnection(client net.Conn, protocol BackendProtocol) {
+func handleConnection(client net.Conn, protocol config.BackendProtocol) {
 	defer client.Close()
 
 	var vhostConn vhost.Conn
 	var err error
 	switch protocol {
-	case PROTO_HTTP:
+	case config.PROTO_HTTP:
 		vhostConn, err = vhost.HTTP(client)
-	case PROTO_HTTPS:
+	case config.PROTO_HTTPS:
 		vhostConn, err = vhost.TLS(client)
-	case PROTO_QUIC:
-		var qPacket []byte
-		qPacket, err = clienthellod.UnmarshalQUICClientInitialPacket()
 	default:
 		log.Printf("Invalid protocol from %v", client.RemoteAddr())
 		return
 	}
 	if err != nil {
-		if verbose {
+		if config.Verbose {
 			log.Printf("Error decoding protocol from %v: %v", client.RemoteAddr(), err)
 		}
 		return
@@ -93,7 +79,7 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 
 	hostname := strings.ToLower(vhostConn.Host())
 	vhostConn.Free()
-	backend, err := GetBackend(hostname, protocol)
+	backend, err := config.GetBackend(hostname, protocol)
 	if err != nil {
 		log.Printf("Couldn't get backend for %s: %v", hostname, err)
 		return
@@ -110,13 +96,7 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 	}
 
 	ipport := fmt.Sprintf("[%s]:%d", useHost, backend.Port)
-
-	proto := "tcp"
-	if protocol == PROTO_QUIC {
-		proto = "udp"
-	}
-
-	upConn, err := net.DialTimeout(proto, ipport, time.Duration(10000)*time.Millisecond)
+	upConn, err := net.DialTimeout("tcp", ipport, time.Duration(10000)*time.Millisecond)
 	if err != nil {
 		log.Printf("Couldn't dial backend connection for %s: %v", hostname, err)
 		return
@@ -147,7 +127,7 @@ func halfJoin(wg *sync.WaitGroup, dst net.Conn, src net.Conn) {
 	if err == nil || errors.Is(err, net.ErrClosed) {
 		return
 	}
-	if verbose {
+	if config.Verbose {
 		log.Printf("Proxy copy from %v to %v failed with error %v", src.RemoteAddr(), dst.RemoteAddr(), err)
 	}
 }
@@ -161,7 +141,7 @@ func joinConnections(c1 net.Conn, c2 net.Conn) {
 	log.Printf("Conn closed: %v -> %v", c1, c2)
 }
 
-func doProxy(host string, protocol BackendProtocol) {
+func doProxy(host string, protocol config.BackendProtocol) {
 	defer func() {
 		listenerClosedWait.Done()
 		log.Panicf("listener goroutine ended unexpectedly")
@@ -169,7 +149,7 @@ func doProxy(host string, protocol BackendProtocol) {
 
 	var listener net.Listener
 	var err error
-	if protocol == PROTO_QUIC {
+	if protocol == config.PROTO_QUIC {
 		listener, err = udpconn.NewListener(host)
 	} else {
 		listener, err = net.Listen("tcp", host)
@@ -197,15 +177,15 @@ func doProxy(host string, protocol BackendProtocol) {
 }
 
 func main() {
-	LoadConfig()
+	config.LoadConfig()
 
 	privilegeDropWait.Add(1)
 
 	initWait.Add(3)
 	listenerClosedWait.Add(3)
-	go doProxy(os.Getenv("HTTP_ADDR"), PROTO_HTTP)
-	go doProxy(os.Getenv("HTTPS_ADDR"), PROTO_HTTPS)
-	go doProxy(os.Getenv("QUIC_ADDR"), PROTO_QUIC)
+	go doProxy(os.Getenv("HTTP_ADDR"), config.PROTO_HTTP)
+	go doProxy(os.Getenv("HTTPS_ADDR"), config.PROTO_HTTPS)
+	go doProxy(os.Getenv("QUIC_ADDR"), config.PROTO_QUIC)
 
 	initWait.Wait()
 	util.DropPrivs()

@@ -81,6 +81,12 @@ func (c *Conn) handleInitial(buf []byte) {
 }
 
 func (c *Conn) beReader() {
+	c.readerTimeout = time.NewTimer(IdleTimeout)
+	go func() {
+		<-c.readerTimeout.C
+		c.Close()
+	}()
+
 	buf := make([]byte, 65536)
 	for c.open {
 		n, _, err := c.beConn.ReadFromUDP(buf)
@@ -89,6 +95,8 @@ func (c *Conn) beReader() {
 			_ = c.Close()
 			return
 		}
+
+		c.readerTimeout.Reset(IdleTimeout)
 
 		_, err = c.Write(buf[:n])
 		if err != nil {
@@ -100,16 +108,6 @@ func (c *Conn) beReader() {
 }
 
 func (c *Conn) handlePacket(buf []byte) {
-	if c.readerTimeout == nil {
-		c.readerTimeout = time.NewTimer(IdleTimeout)
-		go func() {
-			<-c.readerTimeout.C
-			c.Close()
-		}()
-	} else {
-		c.readerTimeout.Reset(IdleTimeout)
-	}
-
 	if c.beConn == nil {
 		c.handleInitial(buf)
 		if c.beConn == nil {

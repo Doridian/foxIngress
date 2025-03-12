@@ -24,6 +24,12 @@ type Conn struct {
 var IdleTimeout = 60 * time.Second
 
 func (c *Conn) handleInitial(buf []byte) {
+	c.readerTimeout = time.NewTimer(IdleTimeout)
+	go func() {
+		<-c.readerTimeout.C
+		_ = c.Close()
+	}()
+
 	qHello, err := clienthellod.ParseQUICCIP(buf)
 	if err != nil {
 		log.Printf("Error parsing QUIC IP: %v", err)
@@ -81,12 +87,6 @@ func (c *Conn) handleInitial(buf []byte) {
 }
 
 func (c *Conn) beReader() {
-	c.readerTimeout = time.NewTimer(IdleTimeout)
-	go func() {
-		<-c.readerTimeout.C
-		c.Close()
-	}()
-
 	buf := make([]byte, 65536)
 	for c.open {
 		n, _, err := c.beConn.ReadFromUDP(buf)

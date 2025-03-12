@@ -13,7 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/FoxDenHome/sni-vhost-proxy/udpconn"
 	"github.com/FoxDenHome/sni-vhost-proxy/util"
+	"github.com/gaukas/clienthellod"
 	"github.com/inconshreveable/go-vhost"
 )
 
@@ -75,6 +77,9 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 		vhostConn, err = vhost.HTTP(client)
 	case PROTO_HTTPS:
 		vhostConn, err = vhost.TLS(client)
+	case PROTO_QUIC:
+		var qPacket []byte
+		qPacket, err = clienthellod.UnmarshalQUICClientInitialPacket()
 	default:
 		log.Printf("Invalid protocol from %v", client.RemoteAddr())
 		return
@@ -104,9 +109,14 @@ func handleConnection(client net.Conn, protocol BackendProtocol) {
 		useHost = hostname
 	}
 
-	ipport := fmt.Sprintf("%s:%d", useHost, backend.Port)
+	ipport := fmt.Sprintf("[%s]:%d", useHost, backend.Port)
 
-	upConn, err := net.DialTimeout("tcp", ipport, time.Duration(10000)*time.Millisecond)
+	proto := "tcp"
+	if protocol == PROTO_QUIC {
+		proto = "udp"
+	}
+
+	upConn, err := net.DialTimeout(proto, ipport, time.Duration(10000)*time.Millisecond)
 	if err != nil {
 		log.Printf("Couldn't dial backend connection for %s: %v", hostname, err)
 		return
@@ -148,6 +158,7 @@ func joinConnections(c1 net.Conn, c2 net.Conn) {
 	go halfJoin(&wg, c1, c2)
 	go halfJoin(&wg, c2, c1)
 	wg.Wait()
+	log.Printf("Conn closed: %v -> %v", c1, c2)
 }
 
 func doProxy(host string, protocol BackendProtocol) {
@@ -156,10 +167,17 @@ func doProxy(host string, protocol BackendProtocol) {
 		log.Panicf("listener goroutine ended unexpectedly")
 	}()
 
-	listener, err := net.Listen("tcp", host)
+	var listener net.Listener
+	var err error
+	if protocol == PROTO_QUIC {
+		listener, err = udpconn.NewListener(host)
+	} else {
+		listener, err = net.Listen("tcp", host)
+	}
+
 	initWait.Done()
 	if err != nil {
-		log.Panicf("could not listen: %v", err)
+		log.Panicf("could not listen on %s: %v", host, err)
 		return
 	}
 
@@ -183,10 +201,11 @@ func main() {
 
 	privilegeDropWait.Add(1)
 
-	initWait.Add(2)
-	listenerClosedWait.Add(2)
+	initWait.Add(3)
+	listenerClosedWait.Add(3)
 	go doProxy(os.Getenv("HTTP_ADDR"), PROTO_HTTP)
 	go doProxy(os.Getenv("HTTPS_ADDR"), PROTO_HTTPS)
+	go doProxy(os.Getenv("QUIC_ADDR"), PROTO_QUIC)
 
 	initWait.Wait()
 	util.DropPrivs()

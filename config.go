@@ -11,6 +11,7 @@ import (
 
 var backendsHttp map[string]*BackendInfo
 var backendsHttps map[string]*BackendInfo
+var backendsQuic map[string]*BackendInfo
 var wildcardsEnabled = false
 var verbose = false
 
@@ -19,6 +20,7 @@ type BackendProtocol int
 const (
 	PROTO_HTTP BackendProtocol = iota
 	PROTO_HTTPS
+	PROTO_QUIC
 )
 
 const HOST_DEFAULT = "__default__"
@@ -33,6 +35,7 @@ type configBackend struct {
 type configHost struct {
 	Http     configBackend `yaml:"http"`
 	Https    configBackend `yaml:"https"`
+	Quic     configBackend `yaml:"quic"`
 	Template string        `yaml:"template"`
 }
 
@@ -80,6 +83,8 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 		backends = backendsHttp
 	case PROTO_HTTPS:
 		backends = backendsHttps
+	case PROTO_QUIC:
+		backends = backendsQuic
 	default:
 		return nil, errors.New("invalid protocol")
 	}
@@ -136,7 +141,15 @@ func LoadConfig() {
 		if portHttps > 0 {
 			backendsHttps[host] = backendConfigFromConfigHost(&hostConfig.Https, portHttps)
 		}
+
+		portQuic := hostConfig.Quic.Port
+		if portQuic == 0 {
+			portQuic = config.Defaults.Backends.Quic.Port
+		}
+		if portQuic > 0 {
+			backendsQuic[host] = backendConfigFromConfigHost(&hostConfig.Quic, portQuic)
+		}
 	}
 
-	log.Printf("Loaded config with %d HTTP host(s), %d HTTPS host(s), wildard matching %v, verbose %v", len(backendsHttp), len(backendsHttps), wildcardsEnabled, verbose)
+	log.Printf("Loaded config with %d HTTP host(s), %d HTTPS host(s), %d QUIC host(s), wildard matching %v, verbose %v", len(backendsHttp), len(backendsHttps), len(backendsQuic), wildcardsEnabled, verbose)
 }

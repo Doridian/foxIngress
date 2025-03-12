@@ -50,10 +50,12 @@ func NewListener(addr string) (*Listener, error) {
 }
 
 func (l *Listener) removeConn(conn *Conn) {
+	connKey := conn.remoteAddr.String()
+
 	l.connLock.Lock()
 	defer l.connLock.Unlock()
 
-	delete(l.conns, conn.remoteAddr.String())
+	delete(l.conns, connKey)
 }
 
 func (l *Listener) handlePacket(buf []byte, addr *net.UDPAddr) {

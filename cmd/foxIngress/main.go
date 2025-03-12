@@ -35,7 +35,7 @@ func doProxy(host string, proto config.BackendProtocol) {
 }
 
 func main() {
-	log.Printf("foxDNS version %s", util.Version)
+	log.Printf("foxIngress version %s", util.Version)
 
 	config.Load()
 

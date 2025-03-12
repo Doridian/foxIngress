@@ -25,7 +25,7 @@ const (
 
 const HOST_DEFAULT = "__default__"
 
-type configBackend struct {
+type BackendInfo struct {
 	Host            string `yaml:"host"`
 	ProxyProtocol   bool   `yaml:"proxy_protocol"`
 	Port            int    `yaml:"port"`
@@ -33,10 +33,11 @@ type configBackend struct {
 }
 
 type configHost struct {
-	Http     configBackend `yaml:"http"`
-	Https    configBackend `yaml:"https"`
-	Quic     configBackend `yaml:"quic"`
-	Template string        `yaml:"template"`
+	Default  *BackendInfo `yaml:"default"`
+	Http     *BackendInfo `yaml:"http"`
+	Https    *BackendInfo `yaml:"https"`
+	Quic     *BackendInfo `yaml:"quic"`
+	Template string       `yaml:"template"`
 }
 
 type configBase struct {
@@ -45,13 +46,6 @@ type configBase struct {
 	} `yaml:"defaults"`
 	Templates map[string]configHost `yaml:"templates"`
 	Hosts     map[string]configHost `yaml:"hosts"`
-}
-
-type BackendInfo struct {
-	Host            string
-	ProxyProtocol   bool
-	Port            int
-	HostPassthrough bool
 }
 
 func findBackend(hostname string, backends map[string]*BackendInfo) (*BackendInfo, error) {
@@ -91,16 +85,40 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 	return findBackend(hostname, backends)
 }
 
-func backendConfigFromConfigHost(cfg *configBackend, port int) *BackendInfo {
+func loadBackendConfig(cfg *BackendInfo, defCfg ...*BackendInfo) *BackendInfo {
+	if cfg == nil {
+		return nil
+	}
+
+	host := cfg.Host
+	port := cfg.Port
+
+	for _, defCfg := range defCfg {
+		if defCfg == nil {
+			continue
+		}
+
+		if host == "" {
+			host = defCfg.Host
+		}
+		if port == 0 {
+			port = defCfg.Port
+		}
+	}
+
+	if host == "" || port <= 0 {
+		return nil
+	}
+
 	return &BackendInfo{
-		Host:            cfg.Host,
+		Host:            host,
 		Port:            port,
 		ProxyProtocol:   cfg.ProxyProtocol,
 		HostPassthrough: cfg.HostPassthrough,
 	}
 }
 
-func LoadConfig() {
+func Load() {
 	if os.Getenv("VERBOSE") != "" {
 		Verbose = true
 	}
@@ -127,28 +145,19 @@ func LoadConfig() {
 			wildcardsEnabled = true
 		}
 
-		portHttp := hostConfig.Http.Port
-		if portHttp == 0 {
-			portHttp = config.Defaults.Backends.Http.Port
-		}
-		if portHttp > 0 && hostConfig.Http.Host != "" {
-			backendsHttp[host] = backendConfigFromConfigHost(&hostConfig.Http, portHttp)
+		cfg := loadBackendConfig(hostConfig.Http, hostConfig.Default, config.Defaults.Backends.Http)
+		if cfg != nil {
+			backendsHttp[host] = cfg
 		}
 
-		portHttps := hostConfig.Https.Port
-		if portHttps == 0 {
-			portHttps = config.Defaults.Backends.Https.Port
-		}
-		if portHttps > 0 && hostConfig.Https.Host != "" {
-			backendsHttps[host] = backendConfigFromConfigHost(&hostConfig.Https, portHttps)
+		cfg = loadBackendConfig(hostConfig.Https, hostConfig.Default, config.Defaults.Backends.Https)
+		if cfg != nil {
+			backendsHttps[host] = cfg
 		}
 
-		portQuic := hostConfig.Quic.Port
-		if portQuic == 0 {
-			portQuic = config.Defaults.Backends.Quic.Port
-		}
-		if portQuic > 0 && hostConfig.Quic.Host != "" {
-			backendsQuic[host] = backendConfigFromConfigHost(&hostConfig.Quic, portQuic)
+		cfg = loadBackendConfig(hostConfig.Quic, hostConfig.Default, config.Defaults.Backends.Quic)
+		if cfg != nil {
+			backendsQuic[host] = cfg
 		}
 	}
 

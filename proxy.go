@@ -141,7 +141,7 @@ func doProxy(host string, protocol config.BackendProtocol) {
 }
 
 func main() {
-	config.LoadConfig()
+	config.Load()
 
 	privilegeDropWait.Add(1)
 

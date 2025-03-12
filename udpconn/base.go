@@ -40,10 +40,16 @@ func (c *Conn) handleInitial(buf []byte) {
 
 	if backend == nil {
 		// This means we don't want to handle the connection
+		_ = c.Close()
 		return
 	}
 
-	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("[%s]:%d", backend.Host, backend.Port))
+	useHost := backend.Host
+	if backend.HostPassthrough {
+		useHost = serverName
+	}
+
+	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("[%s]:%d", useHost, backend.Port))
 	if err != nil {
 		log.Printf("Error resolving UDP address: %v", err)
 		_ = c.Close()

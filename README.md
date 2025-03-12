@@ -8,4 +8,8 @@ For this, it does not need knowledge of any private keys, even for HTTPS and QUI
 - HTTPS: TLS **SNI**
 - QUIC: TLS **SNI**
 
+By default it looks for a file called `config.yml` in the working directory, but this can be influenced with the `CONFIG_FILE` environment variable.
+
+See [config.example.yml](config.example.yml) for an example config.
+
 MIT licensed

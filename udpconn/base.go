@@ -18,8 +18,7 @@ type Conn struct {
 
 	readerTimeout *time.Timer
 
-	backend *config.BackendInfo
-	beConn  *net.UDPConn
+	beConn *net.UDPConn
 }
 
 var IdleTimeout = 60 * time.Second
@@ -32,19 +31,19 @@ func (c *Conn) handleInitial(buf []byte) {
 	}
 
 	serverName := qHello.QCH.ServerName
-	c.backend, err = config.GetBackend(serverName, config.PROTO_QUIC)
+	backend, err := config.GetBackend(serverName, config.PROTO_QUIC)
 	if err != nil {
 		log.Printf("Error finding backend: %v", err)
 		_ = c.Close()
 		return
 	}
-	if c.backend == nil {
-		log.Printf("No backend found for %s", serverName)
-		_ = c.Close()
+
+	if backend == nil {
+		// This means we don't want to handle the connection
 		return
 	}
 
-	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("[%s]:%d", c.backend.Host, c.backend.Port))
+	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("[%s]:%d", backend.Host, backend.Port))
 	if err != nil {
 		log.Printf("Error resolving UDP address: %v", err)
 		_ = c.Close()
@@ -57,7 +56,7 @@ func (c *Conn) handleInitial(buf []byte) {
 		return
 	}
 
-	if c.backend.ProxyProtocol {
+	if backend.ProxyProtocol {
 		payload, err := util.MakeProxyProtocolPayload(c.RemoteAddr().AddrPort(), c.LocalAddr().AddrPort())
 		if err != nil {
 			log.Printf("Error making proxy protocol payload: %v", err)

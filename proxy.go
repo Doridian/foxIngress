@@ -103,7 +103,6 @@ func joinConnections(c1 net.Conn, c2 net.Conn) {
 	go halfJoin(&wg, c1, c2)
 	go halfJoin(&wg, c2, c1)
 	wg.Wait()
-	log.Printf("Conn closed: %v -> %v", c1, c2)
 }
 
 func doProxy(host string, protocol config.BackendProtocol) {

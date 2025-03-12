@@ -91,12 +91,12 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 	return findBackend(hostname, backends)
 }
 
-func backendConfigFromConfigHost(host *configBackend, port int) *BackendInfo {
+func backendConfigFromConfigHost(cfg *configBackend, port int) *BackendInfo {
 	return &BackendInfo{
-		Host:            host.Host,
+		Host:            cfg.Host,
 		Port:            port,
-		ProxyProtocol:   host.ProxyProtocol,
-		HostPassthrough: host.HostPassthrough,
+		ProxyProtocol:   cfg.ProxyProtocol,
+		HostPassthrough: cfg.HostPassthrough,
 	}
 }
 
@@ -131,7 +131,7 @@ func LoadConfig() {
 		if portHttp == 0 {
 			portHttp = config.Defaults.Backends.Http.Port
 		}
-		if portHttp > 0 {
+		if portHttp > 0 && hostConfig.Http.Host != "" {
 			backendsHttp[host] = backendConfigFromConfigHost(&hostConfig.Http, portHttp)
 		}
 
@@ -139,7 +139,7 @@ func LoadConfig() {
 		if portHttps == 0 {
 			portHttps = config.Defaults.Backends.Https.Port
 		}
-		if portHttps > 0 {
+		if portHttps > 0 && hostConfig.Https.Host != "" {
 			backendsHttps[host] = backendConfigFromConfigHost(&hostConfig.Https, portHttps)
 		}
 
@@ -147,7 +147,7 @@ func LoadConfig() {
 		if portQuic == 0 {
 			portQuic = config.Defaults.Backends.Quic.Port
 		}
-		if portQuic > 0 {
+		if portQuic > 0 && hostConfig.Quic.Host != "" {
 			backendsQuic[host] = backendConfigFromConfigHost(&hostConfig.Quic, portQuic)
 		}
 	}

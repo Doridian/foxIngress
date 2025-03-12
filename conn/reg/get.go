@@ -9,13 +9,17 @@ import (
 	"github.com/Doridian/foxIngress/conn/udp"
 )
 
-func GetListenerForProto(host string, proto config.BackendProtocol) (conn.Listener, error) {
+func GetListenerForProto(host string, proto config.BackendProtocol) (listener conn.Listener, ipProto string, err error) {
 	switch proto {
 	case config.PROTO_HTTP, config.PROTO_HTTPS:
-		return tcp.NewListener(host, proto)
+		ipProto = "TCP"
+		listener, err = tcp.NewListener(host, proto)
 	case config.PROTO_QUIC:
-		return udp.NewListener(host, proto)
+		ipProto = "UDP"
+		listener, err = udp.NewListener(host, proto)
 	default:
-		return nil, fmt.Errorf("unknown protocol %v", proto)
+		return nil, "", fmt.Errorf("unknown protocol %v", proto)
 	}
+
+	return
 }

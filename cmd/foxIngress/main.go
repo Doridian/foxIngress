@@ -5,9 +5,7 @@ import (
 	"sync"
 
 	"github.com/Doridian/foxIngress/config"
-	"github.com/Doridian/foxIngress/conn"
-	"github.com/Doridian/foxIngress/conn/tcp"
-	"github.com/Doridian/foxIngress/conn/udp"
+	"github.com/Doridian/foxIngress/conn/reg"
 	"github.com/Doridian/foxIngress/util"
 )
 
@@ -15,33 +13,24 @@ var initWait sync.WaitGroup
 var listenerClosedWait sync.WaitGroup
 var privilegeDropWait sync.WaitGroup
 
-func doProxy(host string, protocol config.BackendProtocol) {
+func doProxy(host string, proto config.BackendProtocol) {
 	defer func() {
 		listenerClosedWait.Done()
 		log.Fatalf("listener goroutine ended unexpectedly")
 	}()
 
-	listenProto := ""
-	var listener conn.Listener
-	var err error
-	if protocol == config.PROTO_QUIC {
-		listener, err = udp.NewListener(host, protocol)
-		listenProto = "UDP"
-	} else {
-		listener, err = tcp.NewListener(host, protocol)
-		listenProto = "TCP"
-	}
+	listener, ipProto, err := reg.GetListenerForProto(host, proto)
 
 	initWait.Done()
 	if err != nil {
-		log.Fatalf("could not listen on %s %s: %v", listenProto, host, err)
+		log.Fatalf("%s server vcould not listen on %s %s: %v", proto.String(), ipProto, host, err)
 		return
 	}
 
-	log.Printf("Listener started on %s %s", listenProto, host)
+	log.Printf("%s listener started on %s %s", proto.String(), ipProto, host)
 	privilegeDropWait.Wait()
 
-	log.Printf("Server started on %s %s", listenProto, host)
+	log.Printf("%s server started on %s %s", proto.String(), ipProto, host)
 	listener.Start()
 }
 

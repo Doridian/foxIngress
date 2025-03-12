@@ -25,6 +25,19 @@ const (
 	PROTO_QUIC
 )
 
+func (p *BackendProtocol) String() string {
+	switch *p {
+	case PROTO_HTTP:
+		return "HTTP"
+	case PROTO_HTTPS:
+		return "HTTPS"
+	case PROTO_QUIC:
+		return "QUIC"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 const HOST_DEFAULT = "__default__"
 
 type BackendInfo struct {

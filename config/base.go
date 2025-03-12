@@ -26,18 +26,25 @@ const (
 const HOST_DEFAULT = "__default__"
 
 type BackendInfo struct {
+	Host            string
+	Port            int
+	ProxyProtocol   bool
+	HostPassthrough bool
+}
+
+type backendInfoEncoded struct {
 	Host            string `yaml:"host"`
-	ProxyProtocol   bool   `yaml:"proxy_protocol"`
 	Port            int    `yaml:"port"`
-	HostPassthrough bool   `yaml:"host_passthrough"`
+	ProxyProtocol   *bool  `yaml:"proxy_protocol"`
+	HostPassthrough *bool  `yaml:"host_passthrough"`
 }
 
 type configHost struct {
-	Default  *BackendInfo `yaml:"default"`
-	Http     *BackendInfo `yaml:"http"`
-	Https    *BackendInfo `yaml:"https"`
-	Quic     *BackendInfo `yaml:"quic"`
-	Template string       `yaml:"template"`
+	Default  *backendInfoEncoded `yaml:"default"`
+	Http     *backendInfoEncoded `yaml:"http"`
+	Https    *backendInfoEncoded `yaml:"https"`
+	Quic     *backendInfoEncoded `yaml:"quic"`
+	Template string              `yaml:"template"`
 }
 
 type configBase struct {
@@ -85,24 +92,32 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 	return findBackend(hostname, backends)
 }
 
-func loadBackendConfig(cfg *BackendInfo, defCfg ...*BackendInfo) *BackendInfo {
-	if cfg == nil {
+func loadBackendConfig(cfgs ...*backendInfoEncoded) *BackendInfo {
+	if cfgs == nil {
 		return nil
 	}
 
-	host := cfg.Host
-	port := cfg.Port
+	host := ""
+	port := 0
+	var proxyProto *bool = nil
+	var hostPass *bool = nil
 
-	for _, defCfg := range defCfg {
-		if defCfg == nil {
+	for _, cfg := range cfgs {
+		if cfg == nil {
 			continue
 		}
 
 		if host == "" {
-			host = defCfg.Host
+			host = cfg.Host
 		}
 		if port == 0 {
-			port = defCfg.Port
+			port = cfg.Port
+		}
+		if proxyProto == nil {
+			proxyProto = cfg.ProxyProtocol
+		}
+		if hostPass == nil {
+			hostPass = cfg.HostPassthrough
 		}
 	}
 
@@ -110,12 +125,17 @@ func loadBackendConfig(cfg *BackendInfo, defCfg ...*BackendInfo) *BackendInfo {
 		return nil
 	}
 
-	return &BackendInfo{
-		Host:            host,
-		Port:            port,
-		ProxyProtocol:   cfg.ProxyProtocol,
-		HostPassthrough: cfg.HostPassthrough,
+	info := &BackendInfo{
+		Host: host,
+		Port: port,
 	}
+	if proxyProto != nil {
+		info.ProxyProtocol = *proxyProto
+	}
+	if hostPass != nil {
+		info.HostPassthrough = *hostPass
+	}
+	return info
 }
 
 func Load() {

@@ -2,7 +2,6 @@ package udpconn
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net"
 	"sync"
@@ -20,7 +19,7 @@ type Listener struct {
 	conns    map[string]*Conn
 }
 
-func (l *Listener) Accept() (net.Conn, error) {
+func (l *Listener) Start() {
 	// Yeah, this is a hack
 	if l.listenCancel == nil {
 		l.listenCtx, l.listenCancel = context.WithCancel(context.Background())
@@ -29,10 +28,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 	}
 
 	<-l.listenCtx.Done()
-	return nil, errors.New("listener closed")
 }
-
-var _ net.Listener = &Listener{}
 
 func NewListener(addr string) (*Listener, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)

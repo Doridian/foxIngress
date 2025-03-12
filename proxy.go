@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -108,35 +107,45 @@ func joinConnections(c1 net.Conn, c2 net.Conn) {
 func doProxy(host string, protocol config.BackendProtocol) {
 	defer func() {
 		listenerClosedWait.Done()
-		log.Panicf("listener goroutine ended unexpectedly")
+		log.Fatalf("listener goroutine ended unexpectedly")
 	}()
 
-	var listener net.Listener
-	var err error
 	if protocol == config.PROTO_QUIC {
-		listener, err = udpconn.NewListener(host)
-	} else {
-		listener, err = net.Listen("tcp", host)
-	}
+		udpListener, err := udpconn.NewListener(host)
 
-	initWait.Done()
-	if err != nil {
-		log.Panicf("could not listen on %s: %v", host, err)
-		return
-	}
-
-	log.Printf("Listener started on %s", host)
-	privilegeDropWait.Wait()
-
-	log.Printf("Server started on %s", host)
-	for {
-		connection, err := listener.Accept()
+		initWait.Done()
 		if err != nil {
-			log.Printf("Accept error: %v", err)
+			log.Fatalf("could not listen on %s: %v", host, err)
 			return
 		}
 
-		go handleConnection(connection, protocol)
+		log.Printf("UDP listener started on %s", host)
+		privilegeDropWait.Wait()
+
+		log.Printf("UDP server started on %s", host)
+		udpListener.Start()
+	} else {
+		listener, err := net.Listen("tcp", host)
+
+		initWait.Done()
+		if err != nil {
+			log.Fatalf("could not listen on %s: %v", host, err)
+			return
+		}
+
+		log.Printf("TCP listener started on %s", host)
+		privilegeDropWait.Wait()
+
+		log.Printf("TCP server started on %s", host)
+		for {
+			connection, err := listener.Accept()
+			if err != nil {
+				log.Printf("Accept error: %v", err)
+				return
+			}
+
+			go handleConnection(connection, protocol)
+		}
 	}
 }
 
@@ -147,9 +156,9 @@ func main() {
 
 	initWait.Add(3)
 	listenerClosedWait.Add(3)
-	go doProxy(os.Getenv("HTTP_ADDR"), config.PROTO_HTTP)
-	go doProxy(os.Getenv("HTTPS_ADDR"), config.PROTO_HTTPS)
-	go doProxy(os.Getenv("QUIC_ADDR"), config.PROTO_QUIC)
+	go doProxy(config.GetHTTPAddr(), config.PROTO_HTTP)
+	go doProxy(config.GetHTTPSAddr(), config.PROTO_HTTPS)
+	go doProxy(config.GetQUICAddr(), config.PROTO_QUIC)
 
 	initWait.Wait()
 	util.DropPrivs()

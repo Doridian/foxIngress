@@ -11,9 +11,6 @@ RUN upx -9 proxy -o proxy-compressed
 FROM scratch AS base
 EXPOSE 80 443
 ENV CONFIG_FILE=/config/config.yml
-ENV HTTP_ADDR=:80
-ENV HTTPS_ADDR=:443
-ENV QUIC_ADDR=:443
 ENV PUID=1000
 ENV PGID=1000
 ENTRYPOINT [ "/proxy" ]

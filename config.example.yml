@@ -1,0 +1,25 @@
+listeners:
+  http: :8080
+  https: :8443
+  quic: :8443
+defaults:
+  backends:
+    default:
+      host: 10.1.1.1
+    http:
+      port: 80
+    https:
+      port: 443
+    quic:
+      port: 443
+templates:
+  test:
+    default:
+      host: 10.3.3.3
+    http:
+      port: 8080
+    quic:
+      port: -1
+hosts:
+  test.example.com:
+    template: test

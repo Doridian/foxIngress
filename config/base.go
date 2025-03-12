@@ -15,6 +15,8 @@ var backendsQuic map[string]*BackendInfo
 var wildcardsEnabled = false
 var Verbose = false
 
+var config configBase
+
 type BackendProtocol int
 
 const (
@@ -53,6 +55,11 @@ type configBase struct {
 	} `yaml:"defaults"`
 	Templates map[string]configHost `yaml:"templates"`
 	Hosts     map[string]configHost `yaml:"hosts"`
+	Listeners struct {
+		Http  string `yaml:"http"`
+		Https string `yaml:"https"`
+		Quic  string `yaml:"quic"`
+	}
 }
 
 func findBackend(hostname string, backends map[string]*BackendInfo) (*BackendInfo, error) {
@@ -139,12 +146,15 @@ func Load() {
 		Verbose = true
 	}
 
-	file, err := os.Open(os.Getenv("CONFIG_FILE"))
+	cName := os.Getenv("CONFIG_FILE")
+	if cName == "" {
+		cName = "config.yml"
+	}
+	file, err := os.Open(cName)
 	if err != nil {
 		log.Panicf("Could not open config file: %v", err)
 	}
 	decoder := yaml.NewDecoder(file)
-	var config configBase
 	decoder.Decode(&config)
 
 	backendsHttp = make(map[string]*BackendInfo)
@@ -178,4 +188,16 @@ func Load() {
 	}
 
 	log.Printf("Loaded config with %d HTTP host(s), %d HTTPS host(s), %d QUIC host(s), wildard matching %v, verbose %v", len(backendsHttp), len(backendsHttps), len(backendsQuic), wildcardsEnabled, Verbose)
+}
+
+func GetHTTPAddr() string {
+	return config.Listeners.Http
+}
+
+func GetHTTPSAddr() string {
+	return config.Listeners.Https
+}
+
+func GetQUICAddr() string {
+	return config.Listeners.Quic
 }

@@ -14,7 +14,7 @@ COPY go.mod go.sum /src/
 RUN go mod download
 
 COPY . /src
-RUN go build -ldflags='-s -w' -trimpath -o /foxIngress
+RUN go build -ldflags='-s -w' -trimpath -o /foxIngress ./cmd/foxIngress
 
 FROM alpine AS compressor
 RUN apk add --no-cache upx

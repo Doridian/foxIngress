@@ -61,8 +61,12 @@ func NewListener(addr string, proto config.BackendProtocol) (*Listener, error) {
 	return l, nil
 }
 
+func makeConnKey(addr *net.UDPAddr) string {
+	return addr.String()
+}
+
 func (l *Listener) removeConn(connObj *Conn) {
-	connKey := connObj.remoteAddr.String()
+	connKey := makeConnKey(connObj.remoteAddr)
 
 	l.connLock.Lock()
 	defer l.connLock.Unlock()
@@ -83,7 +87,7 @@ func (l *Listener) removeConnInt(connObj *Conn, connKey string) {
 }
 
 func (l *Listener) handlePacket(buf []byte, addr *net.UDPAddr) {
-	connKey := addr.String()
+	connKey := makeConnKey(addr)
 
 	l.connLock.Lock()
 	connObj, ok := l.conns[connKey]

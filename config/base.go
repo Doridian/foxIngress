@@ -69,9 +69,10 @@ type configBase struct {
 	Templates map[string]configHost `yaml:"templates"`
 	Hosts     map[string]configHost `yaml:"hosts"`
 	Listeners struct {
-		Http  string `yaml:"http"`
-		Https string `yaml:"https"`
-		Quic  string `yaml:"quic"`
+		Http       string `yaml:"http"`
+		Https      string `yaml:"https"`
+		Quic       string `yaml:"quic"`
+		Prometheus string `yaml:"prometheus"`
 	}
 }
 
@@ -213,4 +214,8 @@ func GetHTTPSAddr() string {
 
 func GetQUICAddr() string {
 	return config.Listeners.Quic
+}
+
+func GetPrometheusAddr() string {
+	return config.Listeners.Prometheus
 }

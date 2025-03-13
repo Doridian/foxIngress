@@ -21,18 +21,33 @@ type Conn struct {
 	backend      *config.BackendInfo
 	backendMatch string
 	beConn       *net.UDPConn
+
+	ipBuff []byte
 }
 
 var IdleTimeout = 60 * time.Second
 
-func (c *Conn) handleInitial(buf []byte) {
-	c.readerTimeout = time.NewTimer(IdleTimeout)
-	go func() {
-		<-c.readerTimeout.C
-		_ = c.Close()
-	}()
+const MaxPreBuff = 65536
 
-	qHello, err := clienthellod.ParseQUICCIP(buf)
+func (c *Conn) handleInitial(pkt []byte) {
+	if len(c.ipBuff) >= MaxPreBuff {
+		if config.Verbose {
+			log.Printf("QUIC IP buffer overflow, closing connection")
+		}
+		_ = c.Close()
+		return
+	}
+	c.ipBuff = append(c.ipBuff, pkt...)
+
+	if c.readerTimeout == nil {
+		c.readerTimeout = time.NewTimer(IdleTimeout)
+		go func() {
+			<-c.readerTimeout.C
+			_ = c.Close()
+		}()
+	}
+
+	qHello, err := clienthellod.ParseQUICCIP(c.ipBuff)
 	if err != nil {
 		if config.Verbose {
 			log.Printf("Error parsing QUIC IP: %v", err)
@@ -125,9 +140,10 @@ func (c *Conn) handlePacket(buf []byte) (ret bool) {
 	if c.beConn == nil {
 		c.handleInitial(buf)
 		if c.beConn == nil {
-			_ = c.Close()
 			return
 		}
+		buf = c.ipBuff
+		c.ipBuff = make([]byte, 0)
 		ret = true
 	}
 

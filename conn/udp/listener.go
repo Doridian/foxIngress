@@ -95,6 +95,7 @@ func (l *Listener) handlePacket(buf []byte, addr *net.UDPAddr) {
 			remoteAddr: addr,
 			listener:   l,
 			open:       true,
+			ipBuff:     make([]byte, 0),
 		}
 		l.conns[connKey] = connObj
 		conn.RawConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String()).Inc()
@@ -118,7 +119,7 @@ func (l *Listener) reader() {
 			return
 		}
 
-		go l.handlePacket(buf[:n], addr)
+		l.handlePacket(buf[:n], addr)
 	}
 }
 

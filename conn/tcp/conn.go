@@ -29,7 +29,7 @@ func (l *Listener) handleConnection(client net.Conn) {
 	case config.PROTO_HTTPS:
 		vhostConn, err = vhost.TLS(client)
 	default:
-		log.Printf("Invalid protocol from %v", client.RemoteAddr())
+		log.Printf("Invalid TCP protocol %s", l.proto.String())
 		return
 	}
 	if err != nil {

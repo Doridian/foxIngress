@@ -130,9 +130,7 @@ func (c *Conn) initHandler(pkt []byte) []byte {
 	case config.PROTO_QUIC:
 		initOK = c.handleQUICIP(pkt)
 	default:
-		if config.Verbose {
-			log.Printf("Invalid protocol for UDP connection")
-		}
+		log.Printf("Invalid UDP protocol %s", c.listener.proto.String())
 		_ = c.Close()
 		return nil
 	}

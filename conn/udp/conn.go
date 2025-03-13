@@ -193,7 +193,9 @@ func (c *Conn) handlePacket(buf []byte) {
 		return
 	}
 
-	c.readerTimeout.Reset(IdleTimeout)
+	if c.beConn != nil {
+		c.readerTimeout.Reset(IdleTimeout)
+	}
 
 	c.inPackets <- buf
 }

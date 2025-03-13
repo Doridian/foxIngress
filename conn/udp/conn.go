@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Doridian/foxIngress/config"
+	"github.com/Doridian/foxIngress/conn"
 	"github.com/Doridian/foxIngress/util"
 	"github.com/gaukas/clienthellod"
 )
@@ -22,7 +23,8 @@ type Conn struct {
 	backendMatch string
 	beConn       *net.UDPConn
 
-	ipBuff []byte
+	inPackets chan []byte
+	ipBuff    []byte
 }
 
 var IdleTimeout = 60 * time.Second
@@ -38,14 +40,6 @@ func (c *Conn) handleInitial(pkt []byte) {
 		return
 	}
 	c.ipBuff = append(c.ipBuff, pkt...)
-
-	if c.readerTimeout == nil {
-		c.readerTimeout = time.NewTimer(IdleTimeout)
-		go func() {
-			<-c.readerTimeout.C
-			_ = c.Close()
-		}()
-	}
 
 	qHello, err := clienthellod.ParseQUICCIP(c.ipBuff)
 	if err != nil {
@@ -130,32 +124,59 @@ func (c *Conn) beReader() {
 	}
 }
 
-func (c *Conn) handlePacket(buf []byte) (ret bool) {
-	ret = false
+func (c *Conn) chReader() {
+	defer c.Close()
+	defer close(c.inPackets)
 
+	for c.open {
+		buf := <-c.inPackets
+
+		if c.beConn == nil {
+			c.handleInitial(buf)
+			if c.beConn == nil {
+				continue
+			}
+			buf = c.ipBuff
+			c.ipBuff = nil
+
+			conn.ConnectionsTotal.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backendMatch, c.backend.String()).Inc()
+			conn.OpenConnections.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backendMatch, c.backend.String()).Inc()
+			defer conn.OpenConnections.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backendMatch, c.backend.String()).Dec()
+		}
+
+		_, err := c.beConn.Write(buf)
+		if err != nil {
+			if config.Verbose {
+				log.Printf("Error writing to backend: %v", err)
+			}
+			return
+		}
+	}
+}
+
+func (c *Conn) init() {
+	c.ipBuff = make([]byte, 0)
+	c.inPackets = make(chan []byte, 100)
+
+	c.readerTimeout = time.NewTimer(IdleTimeout)
+	go func() {
+		<-c.readerTimeout.C
+		_ = c.Close()
+	}()
+
+	c.open = true
+
+	go c.chReader()
+}
+
+func (c *Conn) handlePacket(buf []byte) {
 	if !c.open {
 		return
 	}
 
-	if c.beConn == nil {
-		c.handleInitial(buf)
-		if c.beConn == nil {
-			return
-		}
-		buf = c.ipBuff
-		c.ipBuff = make([]byte, 0)
-		ret = true
-	}
+	c.readerTimeout.Reset(IdleTimeout)
 
-	_, err := c.beConn.Write(buf)
-	if err != nil {
-		if config.Verbose {
-			log.Printf("Error writing to backend: %v", err)
-		}
-		_ = c.Close()
-	}
-
-	return
+	c.inPackets <- buf
 }
 
 func (c *Conn) Close() error {

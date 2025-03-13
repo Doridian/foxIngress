@@ -19,9 +19,8 @@ type Conn struct {
 
 	readerTimeout *time.Timer
 
-	backend      *config.BackendInfo
-	backendMatch string
-	beConn       *net.UDPConn
+	backend *config.BackendInfo
+	beConn  *net.UDPConn
 
 	inPackets chan []byte
 	initBuff  []byte
@@ -41,7 +40,7 @@ func (c *Conn) handleQUICIP(pkt []byte) bool {
 	}
 
 	serverName := qHello.QCH.ServerName
-	c.backend, c.backendMatch, err = config.GetBackend(serverName, config.PROTO_QUIC)
+	c.backend, err = config.GetBackend(serverName, config.PROTO_QUIC)
 	if err != nil {
 		log.Printf("Error finding backend: %v", err)
 		_ = c.Close()
@@ -130,8 +129,8 @@ func (c *Conn) initHandler(pkt []byte) []byte {
 	case config.PROTO_QUIC:
 		initOK = c.handleQUICIP(pkt)
 	default:
-		log.Printf("Invalid UDP protocol %s", c.listener.proto.String())
 		_ = c.Close()
+		log.Fatalf("Invalid UDP protocol %s", c.listener.proto.String())
 		return nil
 	}
 
@@ -159,9 +158,9 @@ func (c *Conn) chReader() {
 				continue
 			}
 
-			conn.ConnectionsTotal.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backendMatch, c.backend.String()).Inc()
-			conn.OpenConnections.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backendMatch, c.backend.String()).Inc()
-			defer conn.OpenConnections.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backendMatch, c.backend.String()).Dec()
+			conn.ConnectionsTotal.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backend.Match, c.backend.String()).Inc()
+			conn.OpenConnections.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backend.Match, c.backend.String()).Inc()
+			defer conn.OpenConnections.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backend.Match, c.backend.String()).Dec()
 		}
 
 		_, err := c.beConn.Write(buf)

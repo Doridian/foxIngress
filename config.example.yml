@@ -18,7 +18,7 @@ templates:
     default:
       host: 10.3.3.3
     http:
-      port: -1 # Disable HTTP
+      disabled: true
     https:
       host: 10.3.4.4 # Other host for HTTPS only
 hosts:

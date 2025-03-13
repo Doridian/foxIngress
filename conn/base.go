@@ -1,13 +1,16 @@
 package conn
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
 
 type Listener interface {
 	Start()
 	IPProto() string
 }
 
-var RawConnectionsTotal = prometheus.NewCounterVec(
+var RawConnectionsTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "foxingress_raw_connections_total",
 		Help: "Total number of connections accepted by a listener",
@@ -15,7 +18,7 @@ var RawConnectionsTotal = prometheus.NewCounterVec(
 	[]string{"proto", "ipproto", "listener"},
 )
 
-var OpenConnections = prometheus.NewGaugeVec(
+var OpenConnections = promauto.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "foxingress_open_connections",
 		Help: "Number of open connections made to a backend",
@@ -23,7 +26,7 @@ var OpenConnections = prometheus.NewGaugeVec(
 	[]string{"proto", "ipproto", "listener", "backend"},
 )
 
-var ConnectionsTotal = prometheus.NewCounterVec(
+var ConnectionsTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "foxingress_connections_total",
 		Help: "Total number of connections made to a backend",

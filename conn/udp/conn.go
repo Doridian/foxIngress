@@ -18,8 +18,9 @@ type Conn struct {
 
 	readerTimeout *time.Timer
 
-	backend *config.BackendInfo
-	beConn  *net.UDPConn
+	backend      *config.BackendInfo
+	backendMatch string
+	beConn       *net.UDPConn
 }
 
 var IdleTimeout = 60 * time.Second
@@ -40,7 +41,7 @@ func (c *Conn) handleInitial(buf []byte) {
 	}
 
 	serverName := qHello.QCH.ServerName
-	c.backend, err = config.GetBackend(serverName, config.PROTO_QUIC)
+	c.backend, c.backendMatch, err = config.GetBackend(serverName, config.PROTO_QUIC)
 	if err != nil {
 		log.Printf("Error finding backend: %v", err)
 		_ = c.Close()
@@ -114,7 +115,9 @@ func (c *Conn) beReader() {
 	}
 }
 
-func (c *Conn) handlePacket(buf []byte) {
+func (c *Conn) handlePacket(buf []byte) (ret bool) {
+	ret = false
+
 	if !c.open {
 		return
 	}
@@ -125,6 +128,7 @@ func (c *Conn) handlePacket(buf []byte) {
 			_ = c.Close()
 			return
 		}
+		ret = true
 	}
 
 	_, err := c.beConn.Write(buf)
@@ -133,8 +137,9 @@ func (c *Conn) handlePacket(buf []byte) {
 			log.Printf("Error writing to backend: %v", err)
 		}
 		_ = c.Close()
-		return
 	}
+
+	return
 }
 
 func (c *Conn) Close() error {

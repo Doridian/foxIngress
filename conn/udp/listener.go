@@ -77,7 +77,7 @@ func (l *Listener) removeConn(connObj *Conn) {
 
 func (l *Listener) removeConnInt(connObj *Conn, connKey string) {
 	if connObj.backend != nil {
-		conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backend.String()).Dec()
+		conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backendMatch, connObj.backend.String()).Dec()
 	}
 	delete(l.conns, connKey)
 }
@@ -101,11 +101,10 @@ func (l *Listener) handlePacket(buf []byte, addr *net.UDPAddr) {
 	}
 	l.connLock.Unlock()
 
-	initial := connObj.backend == nil
-	connObj.handlePacket(buf)
-	if initial && connObj.backend != nil {
-		conn.ConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backend.String()).Inc()
-		conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backend.String()).Inc()
+	initial := connObj.handlePacket(buf)
+	if initial {
+		conn.ConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backendMatch, connObj.backend.String()).Inc()
+		conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backendMatch, connObj.backend.String()).Inc()
 	}
 }
 

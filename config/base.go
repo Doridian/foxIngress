@@ -84,14 +84,14 @@ type configBase struct {
 	}
 }
 
-func findBackend(hostname string, backends map[string]*BackendInfo) (*BackendInfo, error) {
+func findBackend(hostname string, backends map[string]*BackendInfo) (*BackendInfo, string, error) {
 	backend, ok := backends[hostname]
 	if ok {
-		return backend, nil
+		return backend, hostname, nil
 	}
 
 	if !wildcardsEnabled {
-		return backends[HOST_DEFAULT], nil
+		return backends[HOST_DEFAULT], HOST_DEFAULT, nil
 	}
 
 	hostSplit := strings.Split(hostname, ".")
@@ -101,12 +101,12 @@ func findBackend(hostname string, backends map[string]*BackendInfo) (*BackendInf
 		hostSplit = hostSplit[1:]
 	}
 	if len(hostSplit) == 0 {
-		return backends[HOST_DEFAULT], nil
+		return backends[HOST_DEFAULT], HOST_DEFAULT, nil
 	}
 	return findBackend("_."+strings.Join(hostSplit, "."), backends)
 }
 
-func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error) {
+func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, string, error) {
 	var backends map[string]*BackendInfo
 	switch protocol {
 	case PROTO_HTTP:
@@ -116,7 +116,7 @@ func GetBackend(hostname string, protocol BackendProtocol) (*BackendInfo, error)
 	case PROTO_QUIC:
 		backends = backendsQuic
 	default:
-		return nil, errors.New("invalid protocol")
+		return nil, "", errors.New("invalid protocol")
 	}
 	return findBackend(hostname, backends)
 }

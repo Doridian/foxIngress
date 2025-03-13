@@ -41,7 +41,7 @@ func (l *Listener) handleConnection(client net.Conn) {
 
 	hostname := strings.ToLower(vhostConn.Host())
 	vhostConn.Free()
-	backend, err := config.GetBackend(hostname, l.proto)
+	backend, backendMatch, err := config.GetBackend(hostname, l.proto)
 	if err != nil {
 		log.Printf("Couldn't get backend for %s: %v", hostname, err)
 		return
@@ -52,9 +52,9 @@ func (l *Listener) handleConnection(client net.Conn) {
 		return
 	}
 
-	conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backend.String()).Inc()
-	conn.ConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backend.String()).Inc()
-	defer conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backend.String()).Dec()
+	conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backendMatch, backend.String()).Inc()
+	conn.ConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backendMatch, backend.String()).Inc()
+	defer conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backendMatch, backend.String()).Dec()
 
 	useHost := backend.Host
 	if backend.HostPassthrough {

@@ -21,7 +21,7 @@ type Listener struct {
 	running      bool
 
 	connLock sync.Mutex
-	conns    map[string]*Conn
+	conns    map[connectionKey]*Conn
 }
 
 var _ conn.Listener = &Listener{}
@@ -56,13 +56,9 @@ func NewListener(addr string, proto config.BackendProtocol) (*Listener, error) {
 		addr:    udpAddr,
 		proto:   proto,
 		udpConn: conn,
-		conns:   make(map[string]*Conn),
+		conns:   make(map[connectionKey]*Conn),
 	}
 	return l, nil
-}
-
-func makeConnKey(addr *net.UDPAddr) string {
-	return addr.String()
 }
 
 func (l *Listener) removeConn(connObj *Conn) {
@@ -79,7 +75,7 @@ func (l *Listener) removeConn(connObj *Conn) {
 	l.removeConnInt(connObj, connKey)
 }
 
-func (l *Listener) removeConnInt(connObj *Conn, connKey string) {
+func (l *Listener) removeConnInt(connObj *Conn, connKey connectionKey) {
 	if connObj.backend != nil {
 		conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backendMatch, connObj.backend.String()).Dec()
 	}

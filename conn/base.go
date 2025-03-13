@@ -21,7 +21,7 @@ var RawConnectionsTotal = promauto.NewCounterVec(
 var OpenConnections = promauto.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "foxingress_open_connections",
-		Help: "Number of open connections made to a backend",
+		Help: "Number of open connections",
 	},
 	[]string{"proto", "ipproto", "listener", "backend"},
 )
@@ -29,7 +29,7 @@ var OpenConnections = promauto.NewGaugeVec(
 var ConnectionsTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "foxingress_connections_total",
-		Help: "Total number of connections made to a backend",
+		Help: "Total number of connections",
 	},
 	[]string{"proto", "ipproto", "listener", "backend"},
 )

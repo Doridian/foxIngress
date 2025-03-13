@@ -104,6 +104,7 @@ func (l *Listener) handlePacket(buf []byte, addr *net.UDPAddr) {
 	initial := connObj.backend == nil
 	connObj.handlePacket(buf)
 	if initial && connObj.backend != nil {
+		conn.ConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backend.String()).Inc()
 		conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backend.String()).Inc()
 	}
 }

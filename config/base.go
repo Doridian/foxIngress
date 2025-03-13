@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -45,6 +46,13 @@ type BackendInfo struct {
 	Port            int
 	ProxyProtocol   bool
 	HostPassthrough bool
+}
+
+func (b *BackendInfo) String() string {
+	if b == nil {
+		return "nil"
+	}
+	return fmt.Sprintf("%s:%d", b.Host, b.Port)
 }
 
 type backendInfoEncoded struct {

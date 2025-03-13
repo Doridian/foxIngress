@@ -61,12 +61,24 @@ func NewListener(addr string, proto config.BackendProtocol) (*Listener, error) {
 	return l, nil
 }
 
-func (l *Listener) removeConn(conn *Conn) {
-	connKey := conn.remoteAddr.String()
+func (l *Listener) removeConn(connObj *Conn) {
+	connKey := connObj.remoteAddr.String()
 
 	l.connLock.Lock()
 	defer l.connLock.Unlock()
 
+	_, ok := l.conns[connKey]
+	if !ok {
+		return
+	}
+
+	l.removeConnInt(connObj, connKey)
+}
+
+func (l *Listener) removeConnInt(connObj *Conn, connKey string) {
+	if connObj.backend != nil {
+		conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backend.String()).Dec()
+	}
 	delete(l.conns, connKey)
 }
 
@@ -74,18 +86,26 @@ func (l *Listener) handlePacket(buf []byte, addr *net.UDPAddr) {
 	connKey := addr.String()
 
 	l.connLock.Lock()
-	conn, ok := l.conns[connKey]
-	if !ok || !conn.open {
-		conn = &Conn{
+	connObj, ok := l.conns[connKey]
+	if !ok || !connObj.open {
+		if ok {
+			l.removeConnInt(connObj, connKey)
+		}
+		connObj = &Conn{
 			remoteAddr: addr,
 			listener:   l,
 			open:       true,
 		}
-		l.conns[connKey] = conn
+		l.conns[connKey] = connObj
+		conn.RawConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String()).Inc()
 	}
 	l.connLock.Unlock()
 
-	conn.handlePacket(buf)
+	initial := connObj.backend == nil
+	connObj.handlePacket(buf)
+	if initial && connObj.backend != nil {
+		conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.addr.String(), connObj.backend.String()).Inc()
+	}
 }
 
 func (l *Listener) reader() {
@@ -117,4 +137,8 @@ func (l *Listener) Close() error {
 	}
 
 	return l.udpConn.Close()
+}
+
+func (l *Listener) IPProto() string {
+	return "UDP"
 }

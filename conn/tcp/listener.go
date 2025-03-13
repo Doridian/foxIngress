@@ -16,12 +16,12 @@ type Listener struct {
 
 var _ conn.Listener = &Listener{}
 
-func NewListener(host string, proto config.BackendProtocol) (*Listener, error) {
+func NewListener(addr string, proto config.BackendProtocol) (*Listener, error) {
 	if proto == config.PROTO_QUIC {
 		return nil, errors.New("TCP listener does not support QUIC")
 	}
 
-	listener, err := net.Listen("tcp", host)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -42,4 +42,8 @@ func (l *Listener) Start() {
 
 		go l.handleConnection(connection)
 	}
+}
+
+func (l *Listener) IPProto() string {
+	return "TCP"
 }

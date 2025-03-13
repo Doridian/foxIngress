@@ -22,7 +22,8 @@ func doProxy(host string, proto config.BackendProtocol) {
 		log.Fatalf("listener goroutine ended unexpectedly")
 	}()
 
-	listener, ipProto, err := reg.GetListenerForProto(host, proto)
+	listener, err := reg.GetListenerForProto(host, proto)
+	ipProto := listener.IPProto()
 
 	initWait.Done()
 	if err != nil {

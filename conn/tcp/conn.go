@@ -11,11 +11,14 @@ import (
 	"time"
 
 	"github.com/Doridian/foxIngress/config"
+	"github.com/Doridian/foxIngress/conn"
 	"github.com/Doridian/foxIngress/util"
 	"github.com/inconshreveable/go-vhost"
 )
 
 func (l *Listener) handleConnection(client net.Conn) {
+	conn.RawConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String()).Inc()
+
 	defer client.Close()
 
 	var vhostConn vhost.Conn
@@ -48,6 +51,10 @@ func (l *Listener) handleConnection(client net.Conn) {
 		// This means we don't want to handle the connection
 		return
 	}
+
+	conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backend.String()).Inc()
+	conn.ConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backend.String()).Inc()
+	defer conn.OpenConnections.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String(), backend.String()).Dec()
 
 	useHost := backend.Host
 	if backend.HostPassthrough {

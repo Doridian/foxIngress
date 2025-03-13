@@ -24,29 +24,20 @@ type Conn struct {
 	beConn       *net.UDPConn
 
 	inPackets chan []byte
-	ipBuff    []byte
+	initBuff  []byte
 }
 
 var IdleTimeout = 60 * time.Second
 
 const MaxPreBuff = 65536
 
-func (c *Conn) handleInitial(pkt []byte) {
-	if len(c.ipBuff) >= MaxPreBuff {
-		if config.Verbose {
-			log.Printf("QUIC IP buffer overflow, closing connection")
-		}
-		_ = c.Close()
-		return
-	}
-	c.ipBuff = append(c.ipBuff, pkt...)
-
-	qHello, err := clienthellod.ParseQUICCIP(c.ipBuff)
+func (c *Conn) handleQUICIP(pkt []byte) bool {
+	qHello, err := clienthellod.ParseQUICCIP(pkt)
 	if err != nil {
 		if config.Verbose {
 			log.Printf("Error parsing QUIC IP: %v", err)
 		}
-		return
+		return false
 	}
 
 	serverName := qHello.QCH.ServerName
@@ -54,13 +45,13 @@ func (c *Conn) handleInitial(pkt []byte) {
 	if err != nil {
 		log.Printf("Error finding backend: %v", err)
 		_ = c.Close()
-		return
+		return false
 	}
 
 	if c.backend == nil {
 		// This means we don't want to handle the connection
 		_ = c.Close()
-		return
+		return false
 	}
 
 	useHost := c.backend.Host
@@ -72,13 +63,13 @@ func (c *Conn) handleInitial(pkt []byte) {
 	if err != nil {
 		log.Printf("Error resolving UDP address: %v", err)
 		_ = c.Close()
-		return
+		return false
 	}
 	c.beConn, err = net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
 		log.Printf("Error dialing UDP: %v", err)
 		_ = c.Close()
-		return
+		return false
 	}
 
 	if c.backend.ProxyProtocol {
@@ -86,17 +77,17 @@ func (c *Conn) handleInitial(pkt []byte) {
 		if err != nil {
 			log.Printf("Error making proxy protocol payload: %v", err)
 			_ = c.Close()
-			return
+			return false
 		}
 		_, err = c.Write(payload)
 		if err != nil {
 			log.Printf("Error writing proxy protocol payload: %v", err)
 			_ = c.Close()
-			return
+			return false
 		}
 	}
 
-	go c.beReader()
+	return true
 }
 
 func (c *Conn) beReader() {
@@ -124,6 +115,39 @@ func (c *Conn) beReader() {
 	}
 }
 
+func (c *Conn) initHandler(pkt []byte) []byte {
+	if len(c.initBuff) >= MaxPreBuff {
+		if config.Verbose {
+			log.Printf("UDP init buffer overflow, closing connection")
+		}
+		_ = c.Close()
+		return nil
+	}
+	c.initBuff = append(c.initBuff, pkt...)
+
+	initOK := false
+	switch c.listener.proto {
+	case config.PROTO_QUIC:
+		initOK = c.handleQUICIP(pkt)
+	default:
+		if config.Verbose {
+			log.Printf("Invalid protocol for UDP connection")
+		}
+		_ = c.Close()
+		return nil
+	}
+
+	if !initOK {
+		return nil
+	}
+
+	go c.beReader()
+
+	ipBuff := c.initBuff
+	c.initBuff = nil
+	return ipBuff
+}
+
 func (c *Conn) chReader() {
 	defer c.Close()
 	defer close(c.inPackets)
@@ -132,12 +156,10 @@ func (c *Conn) chReader() {
 		buf := <-c.inPackets
 
 		if c.beConn == nil {
-			c.handleInitial(buf)
-			if c.beConn == nil {
+			buf = c.initHandler(buf)
+			if buf == nil {
 				continue
 			}
-			buf = c.ipBuff
-			c.ipBuff = nil
 
 			conn.ConnectionsTotal.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backendMatch, c.backend.String()).Inc()
 			conn.OpenConnections.WithLabelValues(c.listener.proto.String(), c.listener.IPProto(), c.listener.addr.String(), c.backendMatch, c.backend.String()).Inc()
@@ -155,7 +177,7 @@ func (c *Conn) chReader() {
 }
 
 func (c *Conn) init() {
-	c.ipBuff = make([]byte, 0)
+	c.initBuff = make([]byte, 0)
 	c.inPackets = make(chan []byte, 100)
 
 	c.readerTimeout = time.NewTimer(IdleTimeout)

@@ -200,10 +200,12 @@ func (c *Conn) handlePacket(buf []byte) {
 
 func (c *Conn) Close() error {
 	c.open = false
+	c.readerTimeout.Stop()
 	c.listener.removeConn(c)
 	if c.beConn != nil {
 		_ = c.beConn.Close()
 	}
+	close(c.inPackets)
 	return nil
 }
 

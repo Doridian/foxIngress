@@ -177,11 +177,9 @@ func (c *Conn) init() {
 	c.initBuff = make([]byte, 0)
 	c.inPackets = make(chan []byte, 100)
 
-	c.readerTimeout = time.NewTimer(IdleTimeout)
-	go func() {
-		<-c.readerTimeout.C
+	c.readerTimeout = time.AfterFunc(IdleTimeout, func() {
 		_ = c.Close()
-	}()
+	})
 
 	c.open = true
 

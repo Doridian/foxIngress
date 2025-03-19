@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/Doridian/foxIngress/config"
@@ -14,8 +15,11 @@ import (
 
 type Conn struct {
 	remoteAddr *net.UDPAddr
-	open       bool
-	listener   *Listener
+
+	open     bool
+	openLock sync.Mutex
+
+	listener *Listener
 
 	readerTimeout *time.Timer
 
@@ -157,6 +161,9 @@ func (c *Conn) chReader() {
 }
 
 func (c *Conn) init() {
+	c.openLock.Lock()
+	defer c.openLock.Unlock()
+
 	c.inPackets = make(chan []byte, 16)
 
 	c.readerTimeout = time.AfterFunc(IdleTimeout, func() {
@@ -176,13 +183,21 @@ func (c *Conn) handlePacket(buf []byte) {
 }
 
 func (c *Conn) Close() error {
+	c.openLock.Lock()
+	defer c.openLock.Unlock()
+
+	wasOpen := c.open
 	c.open = false
+
 	c.readerTimeout.Stop()
 	c.listener.removeConn(c)
 	if c.beConn != nil {
 		_ = c.beConn.Close()
 	}
-	close(c.inPackets)
+
+	if wasOpen {
+		close(c.inPackets)
+	}
 	return nil
 }
 

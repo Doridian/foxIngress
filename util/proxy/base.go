@@ -32,7 +32,7 @@ var header = [13]byte{
 	protoVersion | protoCommand,
 }
 
-func MakePayload(proto Transport, srcAddr netip.AddrPort, dstAddr netip.AddrPort) ([]byte, error) {
+func MakePayload(proto Transport, srcAddr netip.AddrPort, dstAddr netip.AddrPort) (data []byte, err error) {
 	maxAddrLen := net.IPv4len
 	if srcAddr.Addr().Is6() || dstAddr.Addr().Is6() {
 		maxAddrLen = net.IPv6len
@@ -44,7 +44,9 @@ func MakePayload(proto Transport, srcAddr netip.AddrPort, dstAddr netip.AddrPort
 	switch maxAddrLen {
 	case net.IPv4len:
 		outBuf.WriteByte(AFIPv4 | proto)
-		binary.Write(&outBuf, binary.BigEndian, uint16(addrLenIPv4))
+		if err = binary.Write(&outBuf, binary.BigEndian, uint16(addrLenIPv4)); err != nil {
+			return
+		}
 
 		addr := srcAddr.Addr().As4()
 		outBuf.Write(addr[:])
@@ -52,7 +54,9 @@ func MakePayload(proto Transport, srcAddr netip.AddrPort, dstAddr netip.AddrPort
 		outBuf.Write(addr[:])
 	case net.IPv6len:
 		outBuf.WriteByte(AFIPv6 | proto)
-		binary.Write(&outBuf, binary.BigEndian, uint16(addrLenIPv6))
+		if err = binary.Write(&outBuf, binary.BigEndian, uint16(addrLenIPv6)); err != nil {
+			return
+		}
 
 		addr := srcAddr.Addr().As16()
 		outBuf.Write(addr[:])
@@ -62,8 +66,12 @@ func MakePayload(proto Transport, srcAddr netip.AddrPort, dstAddr netip.AddrPort
 		return nil, fmt.Errorf("unknown address family len %d", maxAddrLen)
 	}
 
-	binary.Write(&outBuf, binary.BigEndian, srcAddr.Port())
-	binary.Write(&outBuf, binary.BigEndian, dstAddr.Port())
+	if err = binary.Write(&outBuf, binary.BigEndian, srcAddr.Port()); err != nil {
+		return
+	}
+	if err = binary.Write(&outBuf, binary.BigEndian, dstAddr.Port()); err != nil {
+		return
+	}
 
 	return outBuf.Bytes(), nil
 }

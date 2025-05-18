@@ -19,7 +19,9 @@ import (
 func (l *Listener) handleConnection(client net.Conn) {
 	conn.RawConnectionsTotal.WithLabelValues(l.proto.String(), l.IPProto(), l.listener.Addr().String()).Inc()
 
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 
 	var vhostConn vhost.Conn
 	var err error
@@ -67,7 +69,9 @@ func (l *Listener) handleConnection(client net.Conn) {
 		log.Printf("Couldn't dial backend connection for %s: %v", hostname, err)
 		return
 	}
-	defer upConn.Close()
+	defer func() {
+		_ = upConn.Close()
+	}()
 
 	if backend.ProxyProtocol {
 		err = proxy.WriteConn(upConn)
@@ -81,9 +85,12 @@ func (l *Listener) handleConnection(client net.Conn) {
 }
 
 func halfJoin(wg *sync.WaitGroup, dst net.Conn, src net.Conn) {
-	defer wg.Done()
-	defer dst.Close()
-	defer src.Close()
+	defer func() {
+		wg.Done()
+		_ = dst.Close()
+		_ = src.Close()
+	}()
+
 	_, err := io.Copy(dst, src)
 	if err == nil || errors.Is(err, net.ErrClosed) {
 		return

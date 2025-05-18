@@ -204,7 +204,10 @@ func Load() {
 		log.Fatalf("Could not open config file: %v", err)
 	}
 	decoder := yaml.NewDecoder(file)
-	decoder.Decode(&config)
+	err = decoder.Decode(&config)
+	if err != nil {
+		log.Fatalf("Could not open decode file: %v", err)
+	}
 
 	backendsHttp = make(map[string]*BackendInfo)
 	backendsHttps = make(map[string]*BackendInfo)

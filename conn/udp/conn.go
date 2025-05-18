@@ -9,7 +9,7 @@ import (
 
 	"github.com/Doridian/foxIngress/config"
 	"github.com/Doridian/foxIngress/conn"
-	"github.com/Doridian/foxIngress/util"
+	"github.com/Doridian/foxIngress/util/proxy"
 	"github.com/gaukas/clienthellod"
 )
 
@@ -45,7 +45,7 @@ func (c *Conn) handleQUICIP(pkt []byte) bool {
 	serverName := qHello.QCH.ServerName
 	c.backend, err = config.GetBackend(serverName, config.PROTO_QUIC)
 	if err != nil {
-		log.Printf("Error finding backend: %v", err)
+		log.Printf("Error finding backend for %s: %v", serverName, err)
 		_ = c.Close()
 		return false
 	}
@@ -63,27 +63,21 @@ func (c *Conn) handleQUICIP(pkt []byte) bool {
 
 	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("[%s]:%d", useHost, c.backend.Port))
 	if err != nil {
-		log.Printf("Error resolving UDP address: %v", err)
+		log.Printf("Error resolving UDP address for %s: %v", serverName, err)
 		_ = c.Close()
 		return false
 	}
 	c.beConn, err = net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
-		log.Printf("Error dialing UDP: %v", err)
+		log.Printf("Error dialing UDP for %s: %v", serverName, err)
 		_ = c.Close()
 		return false
 	}
 
 	if c.backend.ProxyProtocol {
-		payload, err := util.MakeProxyProtocolPayload(c.RemoteAddr().AddrPort(), c.LocalAddr().AddrPort())
+		err = proxy.WriteConn(c)
 		if err != nil {
-			log.Printf("Error making proxy protocol payload: %v", err)
-			_ = c.Close()
-			return false
-		}
-		_, err = c.Write(payload)
-		if err != nil {
-			log.Printf("Error writing proxy protocol payload: %v", err)
+			log.Printf("Could not write PROXY protocol payload for %s: %v", serverName, err)
 			_ = c.Close()
 			return false
 		}
@@ -209,10 +203,10 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	return c.listener.udpConn.WriteToUDP(b, c.remoteAddr)
 }
 
-func (c *Conn) LocalAddr() *net.UDPAddr {
+func (c *Conn) LocalAddr() net.Addr {
 	return c.listener.addr
 }
 
-func (c *Conn) RemoteAddr() *net.UDPAddr {
+func (c *Conn) RemoteAddr() net.Addr {
 	return c.remoteAddr
 }

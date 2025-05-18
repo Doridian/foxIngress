@@ -12,7 +12,7 @@ import (
 
 	"github.com/Doridian/foxIngress/config"
 	"github.com/Doridian/foxIngress/conn"
-	"github.com/Doridian/foxIngress/util"
+	"github.com/Doridian/foxIngress/util/proxy"
 	"github.com/inconshreveable/go-vhost"
 )
 
@@ -70,12 +70,7 @@ func (l *Listener) handleConnection(client net.Conn) {
 	defer upConn.Close()
 
 	if backend.ProxyProtocol {
-		data, err := util.MakeProxyProtocolPayload(client.RemoteAddr().(*net.TCPAddr).AddrPort(), client.LocalAddr().(*net.TCPAddr).AddrPort())
-		if err != nil {
-			log.Printf("Could not make PROXY protocol payload for %s: %v", hostname, err)
-			return
-		}
-		_, err = upConn.Write(data)
+		err = proxy.WriteConn(upConn)
 		if err != nil {
 			log.Printf("Could not write PROXY protocol payload for %s: %v", hostname, err)
 			return

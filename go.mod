@@ -2,7 +2,7 @@ module github.com/Doridian/foxIngress
 
 go 1.22
 
-toolchain go1.24.3
+toolchain go1.24.4
 
 require (
 	github.com/gaukas/clienthellod v0.4.2

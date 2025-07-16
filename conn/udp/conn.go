@@ -75,7 +75,7 @@ func (c *Conn) handleQUICIP(pkt []byte) bool {
 	}
 
 	if c.backend.ProxyProtocol {
-		err = proxy.WriteConn(c)
+		err = proxy.WriteConn(c, c.beConn)
 		if err != nil {
 			log.Printf("Could not write PROXY protocol payload for %s: %v", serverName, err)
 			_ = c.Close()

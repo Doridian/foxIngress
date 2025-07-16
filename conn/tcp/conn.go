@@ -23,13 +23,13 @@ func (l *Listener) handleConnection(client net.Conn) {
 		_ = client.Close()
 	}()
 
-	var vhostConn vhost.Conn
+	var clientConn vhost.Conn
 	var err error
 	switch l.proto {
 	case config.PROTO_HTTP:
-		vhostConn, err = vhost.HTTP(client)
+		clientConn, err = vhost.HTTP(client)
 	case config.PROTO_HTTPS:
-		vhostConn, err = vhost.TLS(client)
+		clientConn, err = vhost.TLS(client)
 	default:
 		log.Fatalf("Invalid TCP protocol %s", l.proto.String())
 		return
@@ -41,8 +41,8 @@ func (l *Listener) handleConnection(client net.Conn) {
 		return
 	}
 
-	hostname := strings.ToLower(vhostConn.Host())
-	vhostConn.Free()
+	hostname := strings.ToLower(clientConn.Host())
+	clientConn.Free()
 	backend, err := config.GetBackend(hostname, l.proto)
 	if err != nil {
 		log.Printf("Couldn't get backend for %s: %v", hostname, err)
@@ -64,24 +64,24 @@ func (l *Listener) handleConnection(client net.Conn) {
 	}
 
 	ipport := fmt.Sprintf("[%s]:%d", useHost, backend.Port)
-	upConn, err := net.DialTimeout("tcp", ipport, time.Duration(10000)*time.Millisecond)
+	backendConn, err := net.DialTimeout("tcp", ipport, time.Duration(10000)*time.Millisecond)
 	if err != nil {
 		log.Printf("Couldn't dial backend connection for %s: %v", hostname, err)
 		return
 	}
 	defer func() {
-		_ = upConn.Close()
+		_ = backendConn.Close()
 	}()
 
 	if backend.ProxyProtocol {
-		err = proxy.WriteConn(upConn)
+		err = proxy.WriteConn(clientConn, backendConn)
 		if err != nil {
 			log.Printf("Could not write PROXY protocol payload for %s: %v", hostname, err)
 			return
 		}
 	}
 
-	joinConnections(vhostConn, upConn)
+	joinConnections(clientConn, backendConn)
 }
 
 func halfJoin(wg *sync.WaitGroup, dst net.Conn, src net.Conn) {

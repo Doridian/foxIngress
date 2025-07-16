@@ -24,12 +24,12 @@ func getIP(addr net.Addr) (netip.AddrPort, Transport, error) {
 	return netip.AddrPort{}, 0, fmt.Errorf("unsupported address type: %T (%v)", addr, addr)
 }
 
-func WriteConn(c Conn) error {
-	remoteAddr, proto, err := getIP(c.RemoteAddr())
+func WriteConn(clientConn Conn, backendConn Conn) error {
+	remoteAddr, proto, err := getIP(clientConn.RemoteAddr())
 	if err != nil {
 		return err
 	}
-	localAddr, _, err := getIP(c.LocalAddr())
+	localAddr, _, err := getIP(clientConn.LocalAddr())
 	if err != nil {
 		return err
 	}
@@ -38,6 +38,6 @@ func WriteConn(c Conn) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.Write(payload)
+	_, err = backendConn.Write(payload)
 	return err
 }

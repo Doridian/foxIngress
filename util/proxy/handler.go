@@ -7,9 +7,7 @@ import (
 	"net/netip"
 )
 
-type Conn interface {
-	io.Writer
-
+type Addressable interface {
 	LocalAddr() net.Addr
 	RemoteAddr() net.Addr
 }
@@ -24,7 +22,7 @@ func getIP(addr net.Addr) (netip.AddrPort, Transport, error) {
 	return netip.AddrPort{}, 0, fmt.Errorf("unsupported address type: %T (%v)", addr, addr)
 }
 
-func WriteConn(clientConn Conn, backendConn Conn) error {
+func WriteConn(clientConn Addressable, backendConn io.Writer) error {
 	remoteAddr, proto, err := getIP(clientConn.RemoteAddr())
 	if err != nil {
 		return err

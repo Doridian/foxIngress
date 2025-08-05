@@ -27,14 +27,14 @@ func doProxy(host string, proto config.BackendProtocol) {
 
 	initWait.Done()
 	if err != nil {
-		log.Fatalf("%s server vcould not listen on %s %s: %v", proto.String(), ipProto, host, err)
+		log.Fatalf("%s server could not listen on %s %s: %v", proto.String(), ipProto, host, err)
 		return
 	}
 
 	log.Printf("%s listener started on %s %s", proto.String(), ipProto, host)
 	privilegeDropWait.Wait()
 
-	log.Printf("%s server started on %s %s", proto.String(), ipProto, host)
+	log.Printf("%s listener enabled on %s %s", proto.String(), ipProto, host)
 	listener.Start()
 }
 

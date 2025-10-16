@@ -61,8 +61,8 @@ type backendInfoEncoded struct {
 	Host            *string `yaml:"host"`
 	Port            *int    `yaml:"port"`
 	Disabled        *bool   `yaml:"disabled"`
-	ProxyProtocol   *bool   `yaml:"proxy_protocol"`
-	HostPassthrough *bool   `yaml:"host_passthrough"`
+	ProxyProtocol   *bool   `yaml:"proxyProtocol"`
+	HostPassthrough *bool   `yaml:"hostPassthrough"`
 }
 
 type configHost struct {
